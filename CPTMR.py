@@ -1,9 +1,13 @@
 import time
 import logging
 from typing import List, Optional, Dict, Any
+from dotenv import load_dotenv
 from database.db_manager import JobDatabase
 from collectors.gupy_collector import GupyCollector
 from scoring.gemini_scorer import GeminiScorer
+import notificacao_email
+
+load_dotenv()
 
 # Configuração de logging conforme Clean Code
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -122,6 +126,14 @@ def orquestrar_sistema() -> None:
             # 3. Respiro do servidor (Boas práticas de chamadas de API)
             logger.info("⏳ Aguardando intervalo de 20 segundos para a próxima chamada...")
             time.sleep(20)
+
+    print("\n" + "="*40)
+    print("📧 FASE 3: RELATÓRIO E-MAIL")
+    print("="*40)
+    try:
+        notificacao_email.enviar_relatorio_email()
+    except Exception as e:
+        logger.error(f"Erro ao disparar e-mail: {e}")
 
     print("\n" + "="*40)
     print("🎉 FLUXO DO JOB HUNTER AI FINALIZADO COM SUCESSO!")

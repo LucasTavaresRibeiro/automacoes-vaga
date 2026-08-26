@@ -30,7 +30,7 @@ class GupyCollector(BaseCollector):
         termo_url = termo_busca.replace(" ", "%20")
         url_busca = f"{self.url_base}{termo_url}"
         
-        locais_desejados = ["rio de janeiro", "rio de jan", "- rj", "remoto"]
+        locais_desejados = ["são paulo", "sao paulo", "- sp", "remoto", "híbrido", "qualquer lugar"]
         termos_pcd = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd"]
 
         print(f"🌍 Navegando direto para: {url_busca}")
