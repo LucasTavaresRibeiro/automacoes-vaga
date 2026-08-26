@@ -62,16 +62,15 @@ class GupyCollector(BaseCollector):
                     if link and link.startswith('/'):
                         link = f"https://portal.gupy.io{link}"
                         
-                    # Extrai o nome da empresa pela URL (ex: https://montreal.gupy.io -> Montreal)
-                    nome_empresa = "Não identificada"
-                    if "gupy.io" in link:
-                        dominio = link.split("//")[-1].split(".")[0]
-                        if dominio != "portal":
-                            nome_empresa = dominio.capitalize()
+                    # Extrai o nome da empresa pela tag <p> do cartão, onde a Gupy costuma colocar
+                    try:
+                        nome_empresa = cartao.locator('p').first.inner_text()
+                    except:
+                        nome_empresa = "Não identificada"
                             
                     vaga_formatada = self.formatar_vaga(
                         id_vaga=link, titulo=titulo, empresa=nome_empresa, 
-                        localizacao="Remoto", descricao=texto_cartao
+                        localizacao="Remoto", descricao=""
                     )
                     vagas_coletadas.append(vaga_formatada)
                 except Exception:
