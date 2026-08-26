@@ -21,9 +21,9 @@ def enviar_relatorio_email():
     vagas_processadas = db.obter_todas_vagas() 
     
     # Filtra vagas com score >= 70 (Boas oportunidades)
-    vagas_boas = [v for v in vagas_processadas if v.get('Score', 0) >= 70]
+    vagas_boas = [v for v in vagas_processadas if v.get('Score_IA') and v.get('Score_IA', 0) >= 70]
     # Ordena por score decrescente
-    vagas_boas.sort(key=lambda x: x.get('Score', 0), reverse=True)
+    vagas_boas.sort(key=lambda x: x.get('Score_IA', 0), reverse=True)
 
     if not vagas_boas:
         logger.info("Nenhuma vaga com score >= 70 encontrada para enviar no relatório.")
@@ -44,8 +44,8 @@ def enviar_relatorio_email():
         corpo_html += f"""
         <div style="margin-bottom: 20px;">
             <h3 style="color: #2e6c80;"><a href="{vaga.get('ID_Vaga')}">{vaga.get('Titulo')}</a></h3>
-            <p><b>Empresa:</b> {vaga.get('Empresa')} | <b>Score IA:</b> <span style="color: green; font-weight: bold;">{vaga.get('Score')}</span></p>
-            <p><b>Justificativa da IA:</b> {vaga.get('Justificativa')}</p>
+            <p><b>Empresa:</b> {vaga.get('Empresa')} | <b>Score IA:</b> <span style="color: green; font-weight: bold;">{vaga.get('Score_IA')}</span></p>
+            <p><b>Justificativa da IA:</b> {vaga.get('Analise_IA')}</p>
         </div>
         """
     
