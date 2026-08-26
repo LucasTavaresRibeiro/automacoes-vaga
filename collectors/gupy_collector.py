@@ -31,7 +31,7 @@ class GupyCollector(BaseCollector):
         url_busca = f"{self.url_base}{termo_url}"
         
         locais_desejados = ["remoto", "remota", "home office", "home-office", "teletrabalho", "anywhere"]
-        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido"]
+        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "efetivo"]
 
         print(f"🌍 Navegando direto para: {url_busca}")
         self.pagina.goto(url_busca)
@@ -62,9 +62,16 @@ class GupyCollector(BaseCollector):
                     if link and link.startswith('/'):
                         link = f"https://portal.gupy.io{link}"
                         
+                    # Extrai o nome da empresa pela URL (ex: https://montreal.gupy.io -> Montreal)
+                    nome_empresa = "Não identificada"
+                    if "gupy.io" in link:
+                        dominio = link.split("//")[-1].split(".")[0]
+                        if dominio != "portal":
+                            nome_empresa = dominio.capitalize()
+                            
                     vaga_formatada = self.formatar_vaga(
-                        id_vaga=link, titulo=titulo, empresa="Empresa no Cartão", 
-                        localizacao="Verificar link", descricao="Descrição no link."
+                        id_vaga=link, titulo=titulo, empresa=nome_empresa, 
+                        localizacao="Remoto", descricao=texto_cartao
                     )
                     vagas_coletadas.append(vaga_formatada)
                 except Exception:
