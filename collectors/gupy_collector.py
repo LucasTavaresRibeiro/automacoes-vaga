@@ -70,7 +70,7 @@ class GupyCollector(BaseCollector):
                             
                     vaga_formatada = self.formatar_vaga(
                         id_vaga=link, titulo=titulo, empresa=nome_empresa, 
-                        localizacao="Remoto", descricao=""
+                        localizacao="Remoto", descricao=texto_cartao
                     )
                     vagas_coletadas.append(vaga_formatada)
                 except Exception:
