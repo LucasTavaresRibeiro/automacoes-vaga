@@ -31,7 +31,7 @@ class GupyCollector(BaseCollector):
         url_busca = f"{self.url_base}{termo_url}"
         
         locais_desejados = ["são paulo", "sao paulo", "- sp", "remoto", "híbrido", "qualquer lugar"]
-        termos_pcd = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd"]
+        termos_pcd = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo"]
 
         print(f"🌍 Navegando direto para: {url_busca}")
         self.pagina.goto(url_busca)
