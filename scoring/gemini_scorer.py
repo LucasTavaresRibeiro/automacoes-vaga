@@ -26,19 +26,19 @@ class GeminiScorer:
 
 PERFIL DO CANDIDATO E REGRAS RÍGIDAS:
 - Candidato: Lucas Ribeiro, Especialista em Automação, Analista de Sustentação Senior (Evertec), e Desenvolvedor RPA.
-- Regime Obrigatório: SOMENTE PJ. Vagas CLT devem ser sumariamente negadas e receber nota < 20.
+- Regime Obrigatório: SOMENTE PJ ou "CLT Cooperado". Vagas CLT padrão devem ser sumariamente negadas e receber nota < 20.
 - Áreas e Níveis:
   1. Infraestrutura, HelpDesk, Suporte, Sustentação: de Júnior a Sênior. Aceita todos os horários (incluindo noturno e 12x36).
   2. DEV RPA: até Pleno, com foco em UiPath, Low-Code e Python Júnior.
   3. Analista de Dados: Nível Júnior.
 - Habilidades Principais: UiPath, Python (Selenium, Pandas), Power Platform (Power Automate, Power Apps), SQL, PowerShell, AWS, Linux, Windows Server, Grafana, Kibana.
-- Restrição crítica: Se a vaga for explicitamente CLT ou não se encaixar em nenhuma das áreas acima, dar nota < 40.
+- Restrição crítica: Se a vaga for explicitamente CLT (exceto cooperado) ou não se encaixar em nenhuma das áreas acima, dar nota < 40.
 
 REGRAS DE PONTUAÇÃO (0-100):
-- [90-100]: Match ideal. Vaga PJ, numa das áreas desejadas (Infra/Suporte/Sustentação, RPA até Pleno, ou Dados Jr) com stack aderente.
-- [70-89]: Match muito bom. Vaga PJ aderente mas sem mencionar a stack exata ou com requisitos levemente fora.
-- [40-69]: Match parcial. Vaga híbrida ou sem clareza de contratação, ou exigindo experiência superior ao desejado na área.
-- [0-39]: Baixa aderência. Vaga explicitamente CLT, ou em áreas não relacionadas, ou exigindo stack completamente diferente.
+- [90-100]: Match ideal. Vaga PJ ou CLT Cooperado, numa das áreas desejadas (Infra/Suporte/Sustentação, RPA até Pleno, ou Dados Jr) com stack aderente.
+- [70-89]: Match muito bom. Vaga PJ/Cooperado aderente mas sem mencionar a stack exata ou com requisitos levemente fora.
+- [40-69]: Match parcial. Vaga sem clareza de regime de contratação (não fala se é PJ/CLT), ou exigindo experiência superior ao desejado na área.
+- [0-39]: Baixa aderência. Vaga explicitamente CLT (padrão), ou em áreas não relacionadas, ou exigindo stack completamente diferente.
 
 JSON SCHEMA:
 {
