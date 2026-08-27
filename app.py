@@ -4,14 +4,15 @@ import pandas as pd
 import subprocess
 import os
 
-st.set_page_config(page_title="Job Hunter AI", layout="wide")
+st.set_page_config(page_title="Job Hunter AI", layout="wide", page_icon="🎯")
 
-st.title("🎯 Job Hunter AI - Dashboard de Vagas")
+st.title("🎯 Job Hunter - Painel de Vagas")
+st.markdown("Bem-vindo ao seu curador automático de vagas na Gupy.")
 
 # Sidebar
 st.sidebar.header("Painel de Controle")
 
-if st.sidebar.button("Rodar Robô de Coleta"):
+if st.sidebar.button("Rodar Robô de Coleta", type="primary"):
     st.sidebar.info("Iniciando coleta... Olhe o terminal!")
     subprocess.Popen(["python", "CPTMR.py"], env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     st.sidebar.success("Robô disparado em background!")
@@ -19,7 +20,7 @@ if st.sidebar.button("Rodar Robô de Coleta"):
 def load_data():
     try:
         conn = sqlite3.connect("banco_vagas.db")
-        df = pd.read_sql_query("SELECT * FROM vagas", conn)
+        df = pd.read_sql_query("SELECT Titulo, Empresa, ID_Vaga, Status, Data_Coleta FROM vagas", conn)
         conn.close()
         return df
     except Exception as e:
@@ -48,7 +49,6 @@ else:
     col_a.metric("Total de Vagas na Fila", total_vagas - total_aplicadas)
     col_b.metric("✅ Vagas Candidatadas", total_aplicadas)
     
-    # Abas
     tab1, tab2 = st.tabs(["📋 Fila de Vagas", "✅ Minhas Candidaturas"])
 
     with tab1:
@@ -61,35 +61,55 @@ else:
         with col2:
             status = st.multiselect("Status", df["Status"].unique(), default=[s for s in df["Status"].unique() if s != "Candidatado"])
 
-        df_fila = df[df["Status"].isin(status)]
+        df_fila = df[df["Status"].isin(status)].copy()
         if termo:
             df_fila = df_fila[(df_fila["Titulo"].str.contains(termo, case=False, na=False)) | (df_fila["Empresa"].str.contains(termo, case=False, na=False))]
 
-        # Remover Localização e ID da visão principal para limpar
-        df_view = df_fila.drop(columns=["Localizacao", "Data_Coleta"])
-
-        st.dataframe(df_view, use_container_width=True, hide_index=True)
-
         st.markdown("---")
-        st.subheader("🔗 Links de Candidatura Rápida")
         
-        for idx, row in df_fila.head(20).iterrows():
-            with st.expander(f"{row['Titulo']} - {row['Empresa']}"):
-                st.write(f"**Score IA:** {row.get('Score_IA', 'Ainda não avaliada')}")
-                st.write(f"**Justificativa:** {row.get('Analise_IA', '')}")
-                st.markdown(f"[Ir para a vaga na Gupy]({row['ID_Vaga']})", unsafe_allow_html=True)
-                
-                if st.button("Marcar como Candidatado", key=row['ID_Vaga']):
-                    marcar_como_candidatado(row['ID_Vaga'])
-                    st.rerun()
+        if not df_fila.empty:
+            df_view = df_fila[["Titulo", "Empresa", "ID_Vaga", "Data_Coleta"]].copy()
+            st.dataframe(
+                df_view,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ID_Vaga": st.column_config.LinkColumn(
+                        "Link da Vaga",
+                        display_text="Acessar na Gupy"
+                    ),
+                    "Titulo": st.column_config.TextColumn("Vaga", width="large"),
+                    "Empresa": st.column_config.TextColumn("Empresa", width="medium"),
+                    "Data_Coleta": st.column_config.DatetimeColumn("Coletada em", format="DD/MM/YYYY HH:mm")
+                }
+            )
+            
+            st.subheader("Ações de Candidatura")
+            # Dropdown to mark as applied
+            vagas_opcoes = df_fila.apply(lambda row: f"{row['Titulo']} - {row['Empresa']} ({row['ID_Vaga']})", axis=1).tolist()
+            selecionada = st.selectbox("Selecione a vaga para marcar como candidatada:", [""] + vagas_opcoes)
+            if st.button("Marcar como Candidatado") and selecionada:
+                link_selecionado = selecionada.split("(")[-1].strip(")")
+                marcar_como_candidatado(link_selecionado)
+                st.rerun()
 
     with tab2:
         st.subheader("Histórico de Aplicações")
-        df_aplicadas = df[df["Status"] == "Candidatado"]
+        df_aplicadas = df[df["Status"] == "Candidatado"].copy()
         
         if not df_aplicadas.empty:
-            df_view_app = df_aplicadas.drop(columns=["Localizacao"])
-            st.dataframe(df_view_app, use_container_width=True, hide_index=True)
+            df_view_app = df_aplicadas[["Titulo", "Empresa", "ID_Vaga", "Data_Coleta"]]
+            st.dataframe(
+                df_view_app,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ID_Vaga": st.column_config.LinkColumn(
+                        "Link da Vaga",
+                        display_text="Acessar na Gupy"
+                    )
+                }
+            )
         else:
             st.info("Você ainda não marcou nenhuma vaga como candidatada.")
 
@@ -97,13 +117,12 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("➕ Adicionar Vaga Avulsa")
 nova_vaga_url = st.sidebar.text_input("Cole o link da vaga (Gupy)")
-if st.sidebar.button("Adicionar ao Banco"):
+if st.sidebar.button("Adicionar ao Banco", type="secondary"):
     if nova_vaga_url:
         try:
             conn = sqlite3.connect("banco_vagas.db")
             cursor = conn.cursor()
             
-            # Extrair dominio
             dominio = "Desconhecida"
             if "gupy.io" in nova_vaga_url:
                 d = nova_vaga_url.split("//")[-1].split(".")[0]
