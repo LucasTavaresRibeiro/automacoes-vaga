@@ -92,3 +92,33 @@ else:
             st.dataframe(df_view_app, use_container_width=True, hide_index=True)
         else:
             st.info("Você ainda não marcou nenhuma vaga como candidatada.")
+
+# Sidebar - Adicionar vaga avulsa
+st.sidebar.markdown("---")
+st.sidebar.subheader("➕ Adicionar Vaga Avulsa")
+nova_vaga_url = st.sidebar.text_input("Cole o link da vaga (Gupy)")
+if st.sidebar.button("Adicionar ao Banco"):
+    if nova_vaga_url:
+        try:
+            conn = sqlite3.connect("banco_vagas.db")
+            cursor = conn.cursor()
+            
+            # Extrair dominio
+            dominio = "Desconhecida"
+            if "gupy.io" in nova_vaga_url:
+                d = nova_vaga_url.split("//")[-1].split(".")[0]
+                if d != "portal":
+                    dominio = d.capitalize()
+                    
+            cursor.execute('''
+                INSERT INTO vagas (ID_Vaga, Titulo, Empresa, Localizacao, Descricao, Data_Coleta, Status)
+                VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
+            ''', (nova_vaga_url, "Vaga Adicionada Manualmente", dominio, "Remoto", "Adicionada via Link", "Candidatado"))
+            conn.commit()
+            conn.close()
+            st.sidebar.success("Vaga adicionada com sucesso!")
+            st.rerun()
+        except sqlite3.IntegrityError:
+            st.sidebar.warning("Vaga já existe no banco.")
+        except Exception as e:
+            st.sidebar.error(f"Erro: {e}")
