@@ -75,6 +75,8 @@ else:
         
         for idx, row in df_fila.head(20).iterrows():
             with st.expander(f"{row['Titulo']} - {row['Empresa']}"):
+                st.write(f"**Score IA:** {row.get('Score_IA', 'Ainda não avaliada')}")
+                st.write(f"**Justificativa:** {row.get('Analise_IA', '')}")
                 st.markdown(f"[Ir para a vaga na Gupy]({row['ID_Vaga']})", unsafe_allow_html=True)
                 
                 if st.button("Marcar como Candidatado", key=row['ID_Vaga']):
