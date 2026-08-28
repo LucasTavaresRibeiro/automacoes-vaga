@@ -16,8 +16,8 @@ class LinkedInCollector:
 
     def iniciar_navegador(self):
         self.playwright = sync_playwright().start()
-        # Para LinkedIn, rodar em modo não-headless ajuda a evitar bloqueios severos no início
-        self.navegador = self.playwright.chromium.launch(headless=True)
+        # Para LinkedIn, rodar em modo não-headless é MANDATÓRIO para evitar bloqueios severos no início
+        self.navegador = self.playwright.chromium.launch(headless=False)
         self.contexto = self.navegador.new_context(
             viewport={'width': 1920, 'height': 1080},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -38,14 +38,25 @@ class LinkedInCollector:
         
         logger.info("🔑 Realizando login no LinkedIn...")
         self.pagina.goto("https://www.linkedin.com/login")
-        self.pagina.fill("#username", email)
-        self.pagina.fill("#password", senha)
-        self.pagina.click("button[type='submit']")
-        self.pagina.wait_for_load_state("networkidle")
-        time.sleep(4)
         
-        if "checkpoint" in self.pagina.url or "challenge" in self.pagina.url:
-            logger.warning("🚨 O LinkedIn pediu verificação de segurança (Captcha/Código). A coleta pode falhar.")
+        try:
+            # Tenta preencher no padrão /login
+            self.pagina.wait_for_selector("#username", timeout=15000)
+            self.pagina.fill("#username", email)
+            self.pagina.fill("#password", senha)
+            self.pagina.click("button[type='submit']")
+            
+            # Aguarda o redirecionamento
+            self.pagina.wait_for_load_state("networkidle")
+            time.sleep(5)
+            
+            if "checkpoint" in self.pagina.url or "challenge" in self.pagina.url:
+                logger.warning("🚨 O LinkedIn pediu verificação de segurança (Captcha/Código). Como a janela está aberta, resolva rapidamente!")
+                # Dá um tempo pro usuário resolver o captcha visualmente
+                time.sleep(25)
+        except Exception as e:
+            logger.error("Falha ao tentar logar no LinkedIn. O site pode ter bloqueado a requisição: %s", e)
+            raise Exception("Bloqueio no login do LinkedIn")
 
     def formatar_vaga(self, id_vaga: str, titulo: str, empresa: str, localizacao: str, descricao: str) -> Dict[str, Any]:
         return {
