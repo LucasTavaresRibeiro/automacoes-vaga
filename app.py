@@ -69,11 +69,20 @@ else:
         
         if not df_fila.empty:
             df_view = df_fila[["Titulo", "Empresa", "ID_Vaga", "Data_Coleta"]].copy()
-            st.dataframe(
+            # Adiciona coluna de checkbox
+            df_view.insert(0, "Candidatou?", False)
+            
+            edited_df = st.data_editor(
                 df_view,
                 use_container_width=True,
                 hide_index=True,
+                disabled=["Titulo", "Empresa", "ID_Vaga", "Data_Coleta"],
                 column_config={
+                    "Candidatou?": st.column_config.CheckboxColumn(
+                        "✅ Candidatou?",
+                        help="Marque para enviar ao histórico",
+                        default=False
+                    ),
                     "ID_Vaga": st.column_config.LinkColumn(
                         "Link da Vaga",
                         display_text="Acessar na Gupy"
@@ -84,13 +93,11 @@ else:
                 }
             )
             
-            st.subheader("Ações de Candidatura")
-            # Dropdown to mark as applied
-            vagas_opcoes = df_fila.apply(lambda row: f"{row['Titulo']} - {row['Empresa']} ({row['ID_Vaga']})", axis=1).tolist()
-            selecionada = st.selectbox("Selecione a vaga para marcar como candidatada:", [""] + vagas_opcoes)
-            if st.button("Marcar como Candidatado") and selecionada:
-                link_selecionado = selecionada.split("(")[-1].strip(")")
-                marcar_como_candidatado(link_selecionado)
+            # Identifica se algum checkbox foi marcado
+            vagas_marcadas = edited_df[edited_df["Candidatou?"] == True]
+            if not vagas_marcadas.empty:
+                for idx, row in vagas_marcadas.iterrows():
+                    marcar_como_candidatado(row["ID_Vaga"])
                 st.rerun()
 
     with tab2:
@@ -115,9 +122,9 @@ else:
 
 # Sidebar - Adicionar vaga avulsa
 st.sidebar.markdown("---")
-st.sidebar.subheader("➕ Adicionar Vaga Avulsa")
-nova_vaga_url = st.sidebar.text_input("Cole o link da vaga (Gupy)")
-if st.sidebar.button("Adicionar ao Banco", type="secondary"):
+st.sidebar.subheader("➕ Vaga de Fora?")
+nova_vaga_url = st.sidebar.text_input("Cole o link da vaga extra")
+if st.sidebar.button("Salvar no Histórico", type="secondary"):
     if nova_vaga_url:
         try:
             conn = sqlite3.connect("banco_vagas.db")
@@ -135,7 +142,7 @@ if st.sidebar.button("Adicionar ao Banco", type="secondary"):
             ''', (nova_vaga_url, "Vaga Adicionada Manualmente", dominio, "Remoto", "Adicionada via Link", "Candidatado"))
             conn.commit()
             conn.close()
-            st.sidebar.success("Vaga adicionada com sucesso!")
+            st.sidebar.success("Adicionada ao histórico!")
             st.rerun()
         except sqlite3.IntegrityError:
             st.sidebar.warning("Vaga já existe no banco.")
