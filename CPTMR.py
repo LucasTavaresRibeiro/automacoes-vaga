@@ -46,36 +46,39 @@ def orquestrar_sistema() -> None:
     ]
     vagas_salvas_total: int = 0
     
-    logger.info("Ligando motores Gupy e LinkedIn...")
+    # --- GUPY ---
+    logger.info("Ligando motor Gupy...")
     coletor_gupy.iniciar_navegador()
-    coletor_linkedin.iniciar_navegador()
-    coletor_linkedin.login()
-    
     try:
         for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas para o termo: '%s'", termo)
-            
-            # --- GUPY ---
+            logger.info("▶️ Buscando vagas na GUPY para o termo: '%s'", termo)
             vagas_gupy = coletor_gupy.buscar_vagas(termo_busca=termo)
             for vaga in vagas_gupy:
                 if db.salvar_vaga(vaga):
                     vagas_salvas_total += 1
             logger.info("✅ Gupy: Coleta de '%s' finalizada.", termo)
-            
-            # --- LINKEDIN ---
+            time.sleep(2)
+    except Exception as e:
+        logger.error("Erro na Gupy: %s", e)
+    finally:
+        coletor_gupy.fechar_navegador()
+
+    # --- LINKEDIN ---
+    logger.info("Ligando motor LinkedIn...")
+    coletor_linkedin.iniciar_navegador()
+    coletor_linkedin.login()
+    try:
+        for termo in termos_estrategicos:
+            logger.info("▶️ Buscando vagas no LINKEDIN para o termo: '%s'", termo)
             vagas_linkedin = coletor_linkedin.buscar_vagas(termo_busca=termo)
             for vaga in vagas_linkedin:
                 if db.salvar_vaga(vaga):
                     vagas_salvas_total += 1
             logger.info("✅ LinkedIn: Coleta de '%s' finalizada.", termo)
-            
-            logger.info("⏳ Pausa anti-bloqueio...")
             time.sleep(3)
-            
     except Exception as e:
-        logger.error("Erro durante a fase de coleta multi-plataformas: %s", e)
+        logger.error("Erro no LinkedIn: %s", e)
     finally:
-        coletor_gupy.fechar_navegador()
         coletor_linkedin.fechar_navegador()
             
     logger.info("🏁 Fase 1 concluída. Total geral: %d novas vagas no banco.", vagas_salvas_total)
