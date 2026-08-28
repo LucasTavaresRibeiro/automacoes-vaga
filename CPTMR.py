@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from database.db_manager import JobDatabase
 from collectors.gupy_collector import GupyCollector
-from scoring.gemini_scorer import GeminiScorer
+from collectors.linkedin_collector import LinkedInCollector
 import notificacao_email
 
 load_dotenv()
@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def orquestrar_sistema() -> None:
-    logger.info("🚀 Iniciando o Job Hunter AI (Coleta + Scoring)...")
+    logger.info("🚀 Iniciando o Job Hunter AI (Multi-Plataformas)...")
     
     # ==========================================
     # 1. INICIALIZAÇÃO DOS MÓDULOS
@@ -23,19 +23,14 @@ def orquestrar_sistema() -> None:
     db = JobDatabase()
     db.inicializar_banco()
     
-    coletor = GupyCollector()
+    coletor_gupy = GupyCollector()
+    coletor_linkedin = LinkedInCollector()
     
-    ia_scorer: Optional[GeminiScorer] = None
-    try:
-        ia_scorer = GeminiScorer()
-    except ValueError as e:
-        logger.warning("⚠️ Módulo de IA desativado: %s", e)
-
     # ==========================================
-    # 2. FASE DE COLETA (GUPY)
+    # 2. FASE DE COLETA
     # ==========================================
     print("\n" + "="*40)
-    print("🔍 FASE 1: COLETA DE VAGAS MULTI-TERMOS")
+    print("🔍 FASE 1: COLETA DE VAGAS (GUPY + LINKEDIN)")
     print("="*40)
     
     termos_estrategicos: List[str] = [
@@ -51,27 +46,37 @@ def orquestrar_sistema() -> None:
     ]
     vagas_salvas_total: int = 0
     
-    coletor.iniciar_navegador()
+    logger.info("Ligando motores Gupy e LinkedIn...")
+    coletor_gupy.iniciar_navegador()
+    coletor_linkedin.iniciar_navegador()
+    coletor_linkedin.login()
     
     try:
         for termo in termos_estrategicos:
             logger.info("▶️ Buscando vagas para o termo: '%s'", termo)
-            vagas_encontradas: List[Dict[str, Any]] = coletor.buscar_vagas(termo_busca=termo)
             
-            vagas_salvas_termo: int = 0
-            for vaga in vagas_encontradas:
+            # --- GUPY ---
+            vagas_gupy = coletor_gupy.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_gupy:
                 if db.salvar_vaga(vaga):
-                    vagas_salvas_termo += 1
                     vagas_salvas_total += 1
-                    
-            logger.info("✅ %d novas vagas de '%s' salvas no banco.", vagas_salvas_termo, termo)
-            logger.info("⏳ Pausa de 2 segundos (Polite Scraping)...")
-            time.sleep(2)
+            logger.info("✅ Gupy: Coleta de '%s' finalizada.", termo)
+            
+            # --- LINKEDIN ---
+            vagas_linkedin = coletor_linkedin.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_linkedin:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            logger.info("✅ LinkedIn: Coleta de '%s' finalizada.", termo)
+            
+            logger.info("⏳ Pausa anti-bloqueio...")
+            time.sleep(3)
             
     except Exception as e:
-        logger.error("Erro durante a fase de coleta de vagas: %s", e)
+        logger.error("Erro durante a fase de coleta multi-plataformas: %s", e)
     finally:
-        coletor.fechar_navegador()
+        coletor_gupy.fechar_navegador()
+        coletor_linkedin.fechar_navegador()
             
     logger.info("🏁 Fase 1 concluída. Total geral: %d novas vagas no banco.", vagas_salvas_total)
 
