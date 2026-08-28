@@ -65,7 +65,7 @@ class LinkedInCollector:
         
         termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas"]
         # LinkedIn geralmente ja filtra remoto, mas garantimos os termos de PJ
-        locais_desejados = ["pj", "pessoa jurídica", "pessoa juridica", "remoto", "home office"]
+        locais_desejados = ["pj", "pessoa jurídica", "pessoa juridica", "remoto", "home office", "noturno", "noturna", "madrugada"]
 
         logger.info(f"🌍 Navegando no LinkedIn: {url_busca}")
         self.pagina.goto(url_busca)
