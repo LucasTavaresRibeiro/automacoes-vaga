@@ -42,7 +42,9 @@ def orquestrar_sistema() -> None:
         "UiPath",
         "Low-Code",
         "Desenvolvedor Python",
-        "Analista de Dados"
+        "Analista de Dados",
+        "Analista de Sistemas",
+        "Analista de Suporte"
     ]
     vagas_salvas_total: int = 0
     

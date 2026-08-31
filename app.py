@@ -20,7 +20,7 @@ if st.sidebar.button("Rodar Robô de Coleta", type="primary"):
 def load_data():
     try:
         conn = sqlite3.connect("banco_vagas.db")
-        df = pd.read_sql_query("SELECT Titulo, Empresa, ID_Vaga, Status, Data_Coleta FROM vagas", conn)
+        df = pd.read_sql_query("SELECT Titulo, Empresa, ID_Vaga, Status, Data_Coleta, Descricao FROM vagas", conn)
         conn.close()
         return df
     except Exception as e:
@@ -62,6 +62,12 @@ else:
             status = st.multiselect("Status", df["Status"].unique(), default=[s for s in df["Status"].unique() if s != "Candidatado"])
 
         df_fila = df[df["Status"].isin(status)].copy()
+        
+        # Lógica de Ordenação: PJ no topo!
+        is_pj = df_fila["Titulo"].str.contains(r'\bpj\b|pessoa jur[íi]dica', case=False, na=False) | df_fila["Descricao"].str.contains(r'\bpj\b|pessoa jur[íi]dica', case=False, na=False)
+        df_fila["is_pj"] = is_pj
+        df_fila = df_fila.sort_values(by=["is_pj", "Data_Coleta"], ascending=[False, False])
+        
         if termo:
             df_fila = df_fila[(df_fila["Titulo"].str.contains(termo, case=False, na=False)) | (df_fila["Empresa"].str.contains(termo, case=False, na=False))]
 

@@ -16,8 +16,8 @@ class LinkedInCollector:
 
     def iniciar_navegador(self):
         self.playwright = sync_playwright().start()
-        # Para LinkedIn, rodar em modo não-headless é MANDATÓRIO para evitar bloqueios severos no início
-        self.navegador = self.playwright.chromium.launch(headless=False)
+        # Trocado para headless=True para rodar em background (mas pode ser bloqueado mais fácil pelo LinkedIn)
+        self.navegador = self.playwright.chromium.launch(headless=True)
         self.contexto = self.navegador.new_context(
             viewport={'width': 1920, 'height': 1080},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -41,7 +41,8 @@ class LinkedInCollector:
         
         try:
             # Tenta preencher no padrão /login
-            self.pagina.wait_for_selector("#username", timeout=15000)
+            # Aumentado para 60 segundos para dar tempo de digitar a senha do Administrador no Windows (UAC)
+            self.pagina.wait_for_selector("#username", timeout=60000)
             self.pagina.fill("#username", email)
             self.pagina.fill("#password", senha)
             self.pagina.click("button[type='submit']")
@@ -53,7 +54,7 @@ class LinkedInCollector:
             if "checkpoint" in self.pagina.url or "challenge" in self.pagina.url:
                 logger.warning("🚨 O LinkedIn pediu verificação de segurança (Captcha/Código). Como a janela está aberta, resolva rapidamente!")
                 # Dá um tempo pro usuário resolver o captcha visualmente
-                time.sleep(25)
+                time.sleep(30)
         except Exception as e:
             logger.error("Falha ao tentar logar no LinkedIn. O site pode ter bloqueado a requisição: %s", e)
             raise Exception("Bloqueio no login do LinkedIn")
@@ -74,7 +75,7 @@ class LinkedInCollector:
         # Filtros de busca: location=Brasil, f_WT=2 (Remoto), f_TPR=r2592000 (Últimos 30 dias)
         url_busca = f"https://www.linkedin.com/jobs/search/?keywords={termo_url}&location=Brasil&f_WT=2&f_TPR=r2592000"
         
-        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas"]
+        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "c.l.t."]
         # LinkedIn geralmente ja filtra remoto, mas garantimos os termos de PJ
         locais_desejados = ["pj", "pessoa jurídica", "pessoa juridica", "remoto", "home office", "noturno", "noturna", "madrugada"]
 
