@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from database.db_manager import JobDatabase
 from collectors.gupy_collector import GupyCollector
 from collectors.linkedin_collector import LinkedInCollector
+from collectors.solides_collector import SolidesCollector
 import notificacao_email
 
 load_dotenv()
@@ -25,6 +26,7 @@ def orquestrar_sistema() -> None:
     
     coletor_gupy = GupyCollector()
     coletor_linkedin = LinkedInCollector()
+    coletor_solides = SolidesCollector()
     
     # ==========================================
     # 2. FASE DE COLETA
@@ -82,6 +84,23 @@ def orquestrar_sistema() -> None:
         logger.error("Erro no LinkedIn: %s", e)
     finally:
         coletor_linkedin.fechar_navegador()
+        
+    # --- SÓLIDES ---
+    logger.info("Ligando motor Sólides...")
+    coletor_solides.iniciar_navegador()
+    try:
+        for termo in termos_estrategicos:
+            logger.info("▶️ Buscando vagas na SÓLIDES para o termo: '%s'", termo)
+            vagas_solides = coletor_solides.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_solides:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            logger.info("✅ Sólides: Coleta de '%s' finalizada.", termo)
+            time.sleep(2)
+    except Exception as e:
+        logger.error("Erro na Sólides: %s", e)
+    finally:
+        coletor_solides.fechar_navegador()
             
     logger.info("🏁 Fase 1 concluída. Total geral: %d novas vagas no banco.", vagas_salvas_total)
 
