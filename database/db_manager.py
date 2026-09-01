@@ -46,21 +46,25 @@ class JobDatabase:
             raise
 
     def validar_vaga(self, vaga: dict) -> bool:
+        import re
         titulo = vaga.get("Titulo", "").lower()
         descricao = vaga.get("Descricao", "").lower()
         
         # 1. WHITELIST (Obrigatório ter pelo menos 1 termo de TI no título)
         termos_ti = [
-            "analista", "suporte", "desenvolvedor", "python", "dados", "infraestrutura", 
-            "rpa", "helpdesk", "sistemas", "uipath", "low-code", "engenheiro", 
-            "programador", "tech", "ti", "tecnologia", "cloud", "devops", "backend"
+            r"\banalista\b", r"\bsuporte\b", r"\bdesenvolvedor\b", r"\bpython\b", r"\bdados\b", 
+            r"\binfraestrutura\b", r"\brpa\b", r"\bhelpdesk\b", r"\bsistemas\b", r"\buipath\b", 
+            r"\blow-code\b", r"\bengenheiro\b", r"\bprogramador\b", r"\btech\b", r"\bti\b", 
+            r"\btecnologia\b", r"\bcloud\b", r"\bdevops\b", r"\bbackend\b", r"\bback-end\b", 
+            r"\bfrontend\b", r"\bfront-end\b", r"\bfullstack\b", r"\bfull-stack\b"
         ]
-        tem_relacao_ti = any(t in titulo for t in termos_ti)
-        if not tem_relacao_ti:
+        
+        padrao_ti = re.compile('|'.join(termos_ti), re.IGNORECASE)
+        if not padrao_ti.search(titulo):
             return False
             
         # 2. BLACKLIST (Rejeição sumária)
-        import re
+        # O \b garante que palavras curtas não batam no meio de outras palavras.
         if re.search(r'\bclt\b|\bc\.l\.t', descricao):
             return False
             
