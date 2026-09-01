@@ -45,6 +45,31 @@ class JobDatabase:
             logger.error("Erro ao inicializar o banco: %s", e)
             raise
 
+    def validar_vaga(self, vaga: dict) -> bool:
+        titulo = vaga.get("Titulo", "").lower()
+        descricao = vaga.get("Descricao", "").lower()
+        
+        # 1. WHITELIST (Obrigatório ter pelo menos 1 termo de TI no título)
+        termos_ti = [
+            "analista", "suporte", "desenvolvedor", "python", "dados", "infraestrutura", 
+            "rpa", "helpdesk", "sistemas", "uipath", "low-code", "engenheiro", 
+            "programador", "tech", "ti", "tecnologia", "cloud", "devops", "backend"
+        ]
+        tem_relacao_ti = any(t in titulo for t in termos_ti)
+        if not tem_relacao_ti:
+            return False
+            
+        # 2. BLACKLIST (Rejeição sumária)
+        import re
+        if re.search(r'\bclt\b|\bc\.l\.t', descricao):
+            return False
+            
+        for proibido in ["presencial", "híbrido", "hibrido", "banco de talentos", "exclusivo pcd", "encerrada"]:
+            if proibido in descricao or proibido in titulo:
+                return False
+                
+        return True
+
     def vaga_existe(self, id_vaga: str) -> bool:
         """Verifica se o ID_Vaga já está no banco de dados."""
         try:
@@ -63,7 +88,7 @@ class JobDatabase:
             logger.error("❌ Erro: A vaga não possui um ID válido.")
             return False
 
-        if self.vaga_existe(str(id_vaga)):
+        if self.vaga_existe(str(id_vaga)) or not self.validar_vaga(dados_vaga):
             return False
             
         try:
