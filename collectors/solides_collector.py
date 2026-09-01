@@ -55,38 +55,54 @@ class SolidesCollector:
                 self.pagina.mouse.wheel(0, 1500)
                 time.sleep(2)
                 
-            # Buscar links de vagas (Geralmente a URL da Sólides tem '/vaga/' ou o card é um <article>)
-            links = self.pagina.locator("a").all()
+            # Buscar cartões de vagas inteiros (para pegar badges como "Presencial")
+            cartoes = self.pagina.locator("li").all()
             links_processados = set()
             
-            for link_el in links:
+            for cartao in cartoes:
                 try:
-                    href = link_el.get_attribute("href")
-                    if not href or ("/vaga/" not in href and "solides.jobs/vacancies" not in href):
+                    # Encontra o link dentro do cartão
+                    link_el = cartao.locator("a[href*='/vaga/'], a[href*='solides.jobs/vacancies']").first
+                    if not link_el.is_visible():
                         continue
                         
-                    if href in links_processados:
+                    href = link_el.get_attribute("href")
+                    if not href or href in links_processados:
                         continue
                         
                     links_processados.add(href)
                     
-                    texto_completo = link_el.inner_text().lower()
+                    # Pega o texto do CARTÃO INTEIRO (para pegar as badges azuis de 'Presencial' etc)
+                    texto_completo = cartao.inner_text().lower()
                     if not texto_completo:
                         continue
                         
                     # Filtragem Negativa (Proibidos)
                     if any(termo in texto_completo for termo in termos_proibidos):
                         continue
-                    
+                        
                     linhas = texto_completo.split('\n')
                     linhas = [l.strip() for l in linhas if l.strip()]
                     
                     if not linhas:
                         continue
                         
-                    # Heurística para Título e Empresa (geralmente as primeiras linhas)
+                    # Heurística para Título e Empresa
                     titulo = linhas[0].title()
                     empresa = linhas[1].title() if len(linhas) > 1 else "Sólides"
+                    
+                    # FILTRO DE SANIDADE: O título deve ter alguma relação com a nossa busca!
+                    termo_busca_lower = termo_busca.lower()
+                    palavras_chave_busca = [p for p in termo_busca_lower.split() if len(p) > 2]
+                    titulo_lower = titulo.lower()
+                    
+                    tem_relacao = any(palavra in titulo_lower for palavra in palavras_chave_busca)
+                    # Adiciona garantia extra para termos de TI em geral caso a busca seja vaga
+                    termos_ti = ["analista", "suporte", "desenvolvedor", "python", "dados", "infraestrutura", "rpa", "helpdesk", "sistemas"]
+                    tem_relacao_ti = any(t in titulo_lower for t in termos_ti)
+                    
+                    if not (tem_relacao or tem_relacao_ti):
+                        continue # Pula vagas bizarras tipo "Assistente de Sala"
                     
                     vagas_coletadas.append(self.formatar_vaga(
                         id_vaga=href if href.startswith("http") else f"https://vagas.solides.com.br{href}",
