@@ -6,6 +6,7 @@ from database.db_manager import JobDatabase
 from collectors.gupy_collector import GupyCollector
 from collectors.linkedin_collector import LinkedInCollector
 from collectors.solides_collector import SolidesCollector
+from collectors.programathor_collector import ProgramaThorCollector
 import notificacao_email
 
 load_dotenv()
@@ -27,12 +28,13 @@ def orquestrar_sistema() -> None:
     coletor_gupy = GupyCollector()
     coletor_linkedin = LinkedInCollector()
     coletor_solides = SolidesCollector()
+    coletor_programathor = ProgramaThorCollector()
     
     # ==========================================
     # 2. FASE DE COLETA
     # ==========================================
     print("\n" + "="*40)
-    print("🔍 FASE 1: COLETA DE VAGAS (GUPY + LINKEDIN)")
+    print("🔍 FASE 1: COLETA DE VAGAS (GUPY + LINKEDIN + SÓLIDES + PROGRAMATHOR)")
     print("="*40)
     
     termos_estrategicos: List[str] = [
@@ -70,8 +72,8 @@ def orquestrar_sistema() -> None:
     # --- LINKEDIN ---
     logger.info("Ligando motor LinkedIn...")
     coletor_linkedin.iniciar_navegador()
-    coletor_linkedin.login()
     try:
+        coletor_linkedin.login()
         for termo in termos_estrategicos:
             logger.info("▶️ Buscando vagas no LINKEDIN para o termo: '%s'", termo)
             vagas_linkedin = coletor_linkedin.buscar_vagas(termo_busca=termo)
@@ -101,6 +103,23 @@ def orquestrar_sistema() -> None:
         logger.error("Erro na Sólides: %s", e)
     finally:
         coletor_solides.fechar_navegador()
+
+    # --- PROGRAMATHOR ---
+    logger.info("Ligando motor ProgramaThor...")
+    coletor_programathor.iniciar_navegador()
+    try:
+        for termo in termos_estrategicos:
+            logger.info("▶️ Buscando vagas no PROGRAMATHOR para o termo: '%s'", termo)
+            vagas_programathor = coletor_programathor.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_programathor:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            logger.info("✅ ProgramaThor: Coleta de '%s' finalizada.", termo)
+            time.sleep(2)
+    except Exception as e:
+        logger.error("Erro no ProgramaThor: %s", e)
+    finally:
+        coletor_programathor.fechar_navegador()
             
     logger.info("🏁 Fase 1 concluída. Total geral: %d novas vagas no banco.", vagas_salvas_total)
 
