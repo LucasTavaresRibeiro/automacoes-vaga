@@ -69,7 +69,11 @@ class JobDatabase:
         if re.search(r'\bclt\b|\bc\.l\.t', descricao):
             return False
             
-        for proibido in ["presencial", "híbrido", "hibrido", "banco de talentos", "exclusivo pcd", "encerrada"]:
+        for proibido in [
+            "presencial", "híbrido", "hibrido", "banco de talentos", 
+            "exclusivo pcd", "encerrada", "encerrado", "candidaturas encerradas", 
+            "inscrições encerradas", "vaga pausada"
+        ]:
             if proibido in descricao or proibido in titulo:
                 return False
                 
