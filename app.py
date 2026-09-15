@@ -6,8 +6,15 @@ import os
 
 st.set_page_config(page_title="Job Hunter AI", layout="wide", page_icon="🎯")
 
-st.title("🎯 Job Hunter - Painel de Vagas")
-st.markdown("Bem-vindo ao seu curador automático de vagas na Gupy.")
+st.title("🤖 Job Hunter - Painel de Vagas")
+st.markdown("Bem-vindo ao seu curador automático de vagas.")
+
+# Instalação automática do Playwright no Streamlit Cloud
+@st.cache_resource
+def install_playwright():
+    os.system("playwright install chromium")
+    
+install_playwright()
 
 # Sidebar
 st.sidebar.header("Painel de Controle")
