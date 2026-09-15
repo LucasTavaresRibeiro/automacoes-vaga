@@ -56,7 +56,8 @@ class JobDatabase:
             r"\binfraestrutura\b", r"\brpa\b", r"\bhelpdesk\b", r"\bsistemas\b", r"\buipath\b", 
             r"\blow-code\b", r"\bengenheiro\b", r"\bprogramador\b", r"\btech\b", r"\bti\b", 
             r"\btecnologia\b", r"\bcloud\b", r"\bdevops\b", r"\bbackend\b", r"\bback-end\b", 
-            r"\bfrontend\b", r"\bfront-end\b", r"\bfullstack\b", r"\bfull-stack\b"
+            r"\bfrontend\b", r"\bfront-end\b", r"\bfullstack\b", r"\bfull-stack\b",
+            r"\bsustentação\b", r"\bsustentacao\b", r"\bpj\b"
         ]
         
         padrao_ti = re.compile('|'.join(termos_ti), re.IGNORECASE)
