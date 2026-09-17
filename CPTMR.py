@@ -1,5 +1,6 @@
 import time
 import logging
+import os
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from database.db_manager import JobDatabase
@@ -7,6 +8,8 @@ from collectors.gupy_collector import GupyCollector
 from collectors.linkedin_collector import LinkedInCollector
 from collectors.solides_collector import SolidesCollector
 from collectors.programathor_collector import ProgramaThorCollector
+from collectors.vagascom_collector import VagasComCollector
+from collectors.vagaspj_collector import VagasPJCollector
 import notificacao_email
 
 load_dotenv()
@@ -29,15 +32,17 @@ def orquestrar_sistema() -> None:
     coletor_linkedin = LinkedInCollector()
     coletor_solides = SolidesCollector()
     coletor_programathor = ProgramaThorCollector()
+    coletor_vagascom = VagasComCollector()
+    coletor_vagaspj = VagasPJCollector()
     
     # ==========================================
     # 2. FASE DE COLETA
     # ==========================================
     print("\n" + "="*40)
-    print("🔍 FASE 1: COLETA DE VAGAS (GUPY + LINKEDIN + SÓLIDES + PROGRAMATHOR)")
+    print("🔍 FASE 1: COLETA DE VAGAS (6 PLATAFORMAS)")
     print("="*40)
     
-    termos_estrategicos: List[str] = [
+    termos_estrategicos = [
         "Analista de Sustentação",
         "Analista de Suporte",
         "Suporte Técnico",
@@ -48,11 +53,9 @@ def orquestrar_sistema() -> None:
         "Desenvolvedor RPA",
         "UiPath",
         "Low-Code",
-        "Desenvolvedor Python",
-        "Analista de Dados",
         "Analista de Sistemas"
     ]
-    vagas_salvas_total: int = 0
+    vagas_salvas_total = 0
     
     # --- GUPY ---
     logger.info("Ligando motor Gupy...")
@@ -122,6 +125,40 @@ def orquestrar_sistema() -> None:
         logger.error("Erro no ProgramaThor: %s", e)
     finally:
         coletor_programathor.fechar_navegador()
+
+    # --- VAGAS.COM ---
+    logger.info("Ligando motor Vagas.com.br...")
+    coletor_vagascom.iniciar_navegador()
+    try:
+        for termo in termos_estrategicos:
+            logger.info("▶️ Buscando vagas no VAGAS.COM para o termo: '%s'", termo)
+            vagas_vc = coletor_vagascom.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_vc:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            logger.info("✅ Vagas.com: Coleta de '%s' finalizada.", termo)
+            time.sleep(2)
+    except Exception as e:
+        logger.error("Erro no Vagas.com: %s", e)
+    finally:
+        coletor_vagascom.fechar_navegador()
+
+    # --- VAGASPJ ---
+    logger.info("Ligando motor VagasPJ...")
+    coletor_vagaspj.iniciar_navegador()
+    try:
+        for termo in termos_estrategicos:
+            logger.info("▶️ Buscando vagas no VAGASPJ para o termo: '%s'", termo)
+            vagas_pj = coletor_vagaspj.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_pj:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            logger.info("✅ VagasPJ: Coleta de '%s' finalizada.", termo)
+            time.sleep(2)
+    except Exception as e:
+        logger.error("Erro no VagasPJ: %s", e)
+    finally:
+        coletor_vagaspj.fechar_navegador()
             
     logger.info("🏁 Fase 1 concluída. Total geral: %d novas vagas no banco.", vagas_salvas_total)
 
