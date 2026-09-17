@@ -66,14 +66,15 @@ class JobDatabase:
             
         # 2. BLACKLIST (Rejeição sumária)
         # O \b garante que palavras curtas não batam no meio de outras palavras.
-        if re.search(r'\bclt\b|\bc\.l\.t', descricao):
+        has_clt = re.search(r'\bclt\b|\bc\.l\.t', descricao) or re.search(r'\bclt\b|\bc\.l\.t', titulo)
+        
+        # Permitir CLT apenas se for "CLT Cooperado", "PJ ou CLT", etc.
+        has_pj = re.search(r'\bpj\b|pessoa jur[íi]dica|cooperado', descricao) or re.search(r'\bpj\b|pessoa jur[íi]dica|cooperado', titulo)
+        
+        if has_clt and not has_pj:
             return False
             
-        for proibido in [
-            "presencial", "híbrido", "hibrido", "banco de talentos", 
-            "exclusivo pcd", "encerrada", "encerrado", "candidaturas encerradas", 
-            "inscrições encerradas", "vaga pausada"
-        ]:
+        for proibido in ["presencial", "híbrido", "hibrido", "banco de talentos", "exclusivo pcd", "encerrada", "encerrado", "candidaturas encerradas", "inscrições encerradas", "vaga pausada"]:
             if proibido in descricao or proibido in titulo:
                 return False
                 
