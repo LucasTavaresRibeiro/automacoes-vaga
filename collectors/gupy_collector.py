@@ -1,29 +1,13 @@
-from playwright.sync_api import sync_playwright
 import time
+import logging
 from collectors.base_collector import BaseCollector
+
+logger = logging.getLogger(__name__)
 
 class GupyCollector(BaseCollector):
     def __init__(self):
         super().__init__()
         self.url_base = "https://portal.gupy.io/job-search/term="
-        self.playwright = None
-        self.navegador = None
-        self.pagina = None
-
-    def iniciar_navegador(self):
-        """Inicializa o navegador uma única vez para toda a sessão."""
-        print("🌐 Iniciando o motor do navegador (Playwright)...")
-        self.playwright = sync_playwright().start()
-        self.navegador = self.playwright.chromium.launch(headless=False)
-        self.pagina = self.navegador.new_page()
-
-    def fechar_navegador(self):
-        """Encerra o navegador ao final de todas as coletas."""
-        if self.navegador:
-            print("🛑 Desligando o motor do navegador...")
-            self.navegador.close()
-        if self.playwright:
-            self.playwright.stop()
 
     def buscar_vagas(self, termo_busca: str, localizacao: str = "") -> list:
         vagas_coletadas = []
@@ -33,14 +17,14 @@ class GupyCollector(BaseCollector):
         locais_desejados = ["remoto", "remota", "home office", "home-office", "teletrabalho", "anywhere", "são paulo", "sao paulo", "- sp", "qualquer lugar", "pj", "pessoa jurídica", "pessoa juridica", "noturno", "noturna", "madrugada"]
         termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "c.l.t."]
 
-        print(f"🌍 Navegando direto para: {url_busca}")
+        logger.info("Navegando direto para: %s", url_busca)
         self.pagina.goto(url_busca)
         self.pagina.wait_for_load_state('networkidle')
         
         pagina_atual = 1
 
         while True:
-            print(f"📄 Vasculhando a página {pagina_atual} de '{termo_busca}'...")
+            logger.info("Vasculhando a pagina %d de '%s'...", pagina_atual, termo_busca)
             time.sleep(3) 
             
             cartoes_vaga = self.pagina.locator('a').filter(has=self.pagina.locator('h3'))

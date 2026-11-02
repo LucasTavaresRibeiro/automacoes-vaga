@@ -1,7 +1,7 @@
 import time
 import logging
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 from dotenv import load_dotenv
 from database.db_manager import JobDatabase
 from collectors.gupy_collector import GupyCollector
@@ -18,15 +18,25 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def orquestrar_sistema() -> None:
-    logger.info("🚀 Iniciando o Job Hunter AI (Multi-Plataformas)...")
+def orquestrar_sistema(callback_progresso: Optional[Callable[[str], None]] = None) -> Dict[str, int]:
+    def reportar(msg: str):
+        logger.info(msg)
+        if callback_progresso:
+            callback_progresso(msg)
+
+    reportar("🚀 Iniciando o Job Hunter AI (Multi-Plataformas)...")
     
     # ==========================================
     # 1. INICIALIZAÇÃO DOS MÓDULOS
     # ==========================================
-    logger.info("Carregando módulos do sistema...")
     db = JobDatabase()
     db.inicializar_banco()
+    
+    # Audita vagas existentes para marcar as que já encerraram
+    reportar("🔎 Auditando vagas existentes no banco para detectar vagas encerradas...")
+    total_encerradas = db.auditar_vagas_encerradas()
+    if total_encerradas > 0:
+        reportar(f"🚫 {total_encerradas} vaga(s) antiga(s) marcada(s) como Encerrada.")
     
     coletor_gupy = GupyCollector()
     coletor_linkedin = LinkedInCollector()
@@ -38,10 +48,6 @@ def orquestrar_sistema() -> None:
     # ==========================================
     # 2. FASE DE COLETA
     # ==========================================
-    print("\n" + "="*40)
-    print("🔍 FASE 1: COLETA DE VAGAS (6 PLATAFORMAS)")
-    print("="*40)
-    
     termos_estrategicos = [
         "Analista de Sustentação",
         "Analista de Suporte",
@@ -58,122 +64,113 @@ def orquestrar_sistema() -> None:
     vagas_salvas_total = 0
     
     # --- GUPY ---
-    logger.info("Ligando motor Gupy...")
-    coletor_gupy.iniciar_navegador()
+    reportar("🌐 [1/6] Iniciando varredura na Gupy...")
     try:
+        coletor_gupy.iniciar_navegador(headless=True)
         for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas na GUPY para o termo: '%s'", termo)
+            reportar(f"▶️ Gupy: buscando '{termo}'...")
             vagas_gupy = coletor_gupy.buscar_vagas(termo_busca=termo)
             for vaga in vagas_gupy:
                 if db.salvar_vaga(vaga):
                     vagas_salvas_total += 1
-            logger.info("✅ Gupy: Coleta de '%s' finalizada.", termo)
-            time.sleep(2)
+            time.sleep(1)
     except Exception as e:
         logger.error("Erro na Gupy: %s", e)
     finally:
         coletor_gupy.fechar_navegador()
 
-    # --- LINKEDIN ---
-    logger.info("Ligando motor LinkedIn...")
-    coletor_linkedin.iniciar_navegador()
-    try:
-        coletor_linkedin.login()
-        for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas no LINKEDIN para o termo: '%s'", termo)
-            vagas_linkedin = coletor_linkedin.buscar_vagas(termo_busca=termo)
-            for vaga in vagas_linkedin:
-                if db.salvar_vaga(vaga):
-                    vagas_salvas_total += 1
-            logger.info("✅ LinkedIn: Coleta de '%s' finalizada.", termo)
-            time.sleep(3)
-    except Exception as e:
-        logger.error("Erro no LinkedIn: %s", e)
-    finally:
-        coletor_linkedin.fechar_navegador()
-        
-    # --- SÓLIDES ---
-    logger.info("Ligando motor Sólides...")
-    coletor_solides.iniciar_navegador()
-    try:
-        for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas na SÓLIDES para o termo: '%s'", termo)
-            vagas_solides = coletor_solides.buscar_vagas(termo_busca=termo)
-            for vaga in vagas_solides:
-                if db.salvar_vaga(vaga):
-                    vagas_salvas_total += 1
-            logger.info("✅ Sólides: Coleta de '%s' finalizada.", termo)
-            time.sleep(2)
-    except Exception as e:
-        logger.error("Erro na Sólides: %s", e)
-    finally:
-        coletor_solides.fechar_navegador()
-
     # --- PROGRAMATHOR ---
-    logger.info("Ligando motor ProgramaThor...")
-    coletor_programathor.iniciar_navegador()
+    reportar("🌐 [2/6] Iniciando varredura no ProgramaThor...")
     try:
+        coletor_programathor.iniciar_navegador()
         for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas no PROGRAMATHOR para o termo: '%s'", termo)
+            reportar(f"▶️ ProgramaThor: buscando '{termo}'...")
             vagas_programathor = coletor_programathor.buscar_vagas(termo_busca=termo)
             for vaga in vagas_programathor:
                 if db.salvar_vaga(vaga):
                     vagas_salvas_total += 1
-            logger.info("✅ ProgramaThor: Coleta de '%s' finalizada.", termo)
-            time.sleep(2)
+            time.sleep(1)
     except Exception as e:
         logger.error("Erro no ProgramaThor: %s", e)
     finally:
         coletor_programathor.fechar_navegador()
 
-    # --- VAGAS.COM ---
-    logger.info("Ligando motor Vagas.com.br...")
-    coletor_vagascom.iniciar_navegador()
+    # --- SÓLIDES ---
+    reportar("🌐 [3/6] Iniciando varredura na Sólides...")
     try:
+        coletor_solides.iniciar_navegador()
         for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas no VAGAS.COM para o termo: '%s'", termo)
+            reportar(f"▶️ Sólides: buscando '{termo}'...")
+            vagas_solides = coletor_solides.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_solides:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            time.sleep(1)
+    except Exception as e:
+        logger.error("Erro na Sólides: %s", e)
+    finally:
+        coletor_solides.fechar_navegador()
+
+    # --- VAGAS.COM ---
+    reportar("🌐 [4/6] Iniciando varredura no Vagas.com.br...")
+    try:
+        coletor_vagascom.iniciar_navegador(headless=True)
+        for termo in termos_estrategicos:
+            reportar(f"▶️ Vagas.com: buscando '{termo}'...")
             vagas_vc = coletor_vagascom.buscar_vagas(termo_busca=termo)
             for vaga in vagas_vc:
                 if db.salvar_vaga(vaga):
                     vagas_salvas_total += 1
-            logger.info("✅ Vagas.com: Coleta de '%s' finalizada.", termo)
-            time.sleep(2)
+            time.sleep(1)
     except Exception as e:
         logger.error("Erro no Vagas.com: %s", e)
     finally:
         coletor_vagascom.fechar_navegador()
 
     # --- VAGASPJ ---
-    logger.info("Ligando motor VagasPJ...")
-    coletor_vagaspj.iniciar_navegador()
+    reportar("🌐 [5/6] Iniciando varredura no VagasPJ...")
     try:
+        coletor_vagaspj.iniciar_navegador(headless=True)
         for termo in termos_estrategicos:
-            logger.info("▶️ Buscando vagas no VAGASPJ para o termo: '%s'", termo)
+            reportar(f"▶️ VagasPJ: buscando '{termo}'...")
             vagas_pj = coletor_vagaspj.buscar_vagas(termo_busca=termo)
             for vaga in vagas_pj:
                 if db.salvar_vaga(vaga):
                     vagas_salvas_total += 1
-            logger.info("✅ VagasPJ: Coleta de '%s' finalizada.", termo)
-            time.sleep(2)
+            time.sleep(1)
     except Exception as e:
         logger.error("Erro no VagasPJ: %s", e)
     finally:
         coletor_vagaspj.fechar_navegador()
-            
-    logger.info("🏁 Fase 1 concluída. Total geral: %d novas vagas no banco.", vagas_salvas_total)
 
-    print("\n" + "="*40)
-    print("📧 FASE 2: RELATÓRIO E-MAIL")
-    print("="*40)
+    # --- LINKEDIN ---
+    reportar("🌐 [6/6] Iniciando varredura no LinkedIn...")
+    try:
+        coletor_linkedin.iniciar_navegador()
+        try:
+            coletor_linkedin.login()
+        except Exception as e:
+            logger.warning("Seguindo no LinkedIn em modo público/visitante: %s", e)
+        for termo in termos_estrategicos:
+            reportar(f"▶️ LinkedIn: buscando '{termo}'...")
+            vagas_linkedin = coletor_linkedin.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_linkedin:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            time.sleep(2)
+    except Exception as e:
+        logger.error("Erro no LinkedIn: %s", e)
+    finally:
+        coletor_linkedin.fechar_navegador()
+            
+    reportar(f"🏁 Varredura concluída! {vagas_salvas_total} novas vagas salvas e {total_encerradas} encerradas.")
+
     try:
         notificacao_email.enviar_relatorio_email()
     except Exception as e:
         logger.error(f"Erro ao disparar e-mail: {e}")
 
-    print("\n" + "="*40)
-    print("🎉 FLUXO DO JOB HUNTER AI FINALIZADO COM SUCESSO!")
-    print("="*40)
+    return {"novas": vagas_salvas_total, "encerradas": total_encerradas}
 
 if __name__ == "__main__":
     orquestrar_sistema()
-

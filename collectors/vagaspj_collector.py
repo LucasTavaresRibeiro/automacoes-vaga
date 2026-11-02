@@ -1,7 +1,7 @@
-import time
 import logging
+import re
+import requests
 from typing import List, Dict, Any
-from playwright.sync_api import sync_playwright
 from collectors.base_collector import BaseCollector
 
 logger = logging.getLogger(__name__)
@@ -10,69 +10,98 @@ class VagasPJCollector(BaseCollector):
     def __init__(self):
         super().__init__()
         self.url_base = "https://www.vagaspj.com.br/buscar-vagas"
+        self.url_api = "https://www.vagaspj.com.br/buscar-vagas/kelly/chat"
+        self.session = None
+        self.csrf_token = None
 
-    def formatar_vaga(self, id_vaga: str, titulo: str, empresa: str, localizacao: str, descricao: str) -> Dict[str, Any]:
-        return {
-            "ID_Vaga": id_vaga,
-            "Titulo": titulo,
-            "Empresa": empresa,
-            "Localizacao": localizacao,
-            "Descricao": descricao
-        }
+    def iniciar_navegador(self, headless: bool = True):
+        """Inicializa sessão HTTP e obtém o CSRF token da API Kelly do VagasPJ."""
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": self.headers["User-Agent"]
+        })
+        try:
+            r = self.session.get(self.url_base, timeout=20)
+            match = re.search(r'csrf:\s*"([^"]+)"', r.text)
+            if match:
+                self.csrf_token = match.group(1)
+                logger.info("Sessao VagasPJ iniciada com sucesso via API JSON.")
+        except Exception as e:
+            logger.error("Erro ao iniciar sessao no VagasPJ: %s", e)
 
-    def buscar_vagas(self, termo_busca: str) -> List[Dict[str, Any]]:
-        if not self.pagina:
-            logger.error("Navegador não iniciado no VagasPJ.")
-            return []
+    def fechar_navegador(self):
+        if self.session:
+            self.session.close()
+            self.session = None
+
+    def buscar_vagas(self, termo_busca: str, localizacao: str = "") -> List[Dict[str, Any]]:
+        if not self.session or not self.csrf_token:
+            self.iniciar_navegador()
+            if not self.csrf_token:
+                return []
 
         vagas_coletadas = []
-        # O site VagasPJ.com.br provavelmente usa query params (ou renderiza vagas no DOM se apenas formos na página inicial).
-        # Para ser seguro, vamos acessar a página de busca principal, preencher o input de busca e dar enter,
-        # ou apenas navegar com ?q=termo se funcionar.
-        url_busca = f"{self.url_base}?keyword={termo_busca.replace(' ', '+')}"
-        logger.info(f"🌍 Navegando no VagasPJ: {url_busca}")
+        logger.info("Consultando API VagasPJ para: '%s'", termo_busca)
+
+        payload = {
+            "message": f"Quero vagas de {termo_busca} remoto",
+            "channel": "vagas",
+            "filtros": {
+                "cargo": termo_busca,
+                "tipo": "Remoto",
+                "nivel": "Todas"
+            },
+            "start_new": True
+        }
+        headers = {
+            "X-CSRF-TOKEN": self.csrf_token,
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+            "Referer": self.url_base
+        }
 
         try:
-            self.pagina.goto(url_busca, timeout=30000)
-            self.pagina.wait_for_timeout(3000)
+            resp = self.session.post(self.url_api, json=payload, headers=headers, timeout=25)
+            if resp.status_code != 200:
+                logger.warning("API VagasPJ retornou status %d", resp.status_code)
+                return []
 
-            # Procura os links de vagas
-            links = self.pagina.locator("a[href*='/vaga/']").all()
-            links_processados = set()
-            
-            for link_el in links:
+            dados = resp.json()
+            cards = dados.get("vagas_cards") or []
+
+            for card in cards:
                 try:
-                    if not link_el.is_visible():
+                    tipo = (card.get("tipo") or "").lower()
+                    if "presencial" in tipo or "hibrido" in tipo or "híbrido" in tipo:
                         continue
-                        
-                    href = link_el.get_attribute("href")
-                    if not href or href in links_processados:
+
+                    titulo = card.get("nome") or "Vaga PJ"
+                    empresa = card.get("empresa") or "VagasPJ"
+                    url = card.get("url") or ""
+                    if url and url.startswith("/"):
+                        url = f"https://www.vagaspj.com.br{url}"
+                    elif not url and card.get("id"):
+                        url = f"https://www.vagaspj.com.br/vaga-externa/{card.get('id')}/"
+
+                    if not url:
                         continue
-                        
-                    links_processados.add(href)
-                    
-                    # Vamos pegar o container pai para extrair mais contexto
-                    cartao = link_el.evaluate_handle("el => el.closest('div') || el")
-                    texto_completo = cartao.inner_text().strip()
-                    
-                    if not texto_completo:
-                        texto_completo = link_el.inner_text().strip()
-                        
-                    linhas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
-                    titulo = linhas[0] if linhas else "Vaga PJ"
-                    empresa = linhas[1] if len(linhas) > 1 else "Empresa Confidencial"
-                    
+
+                    resumo = card.get("resumo") or ""
+                    salario = card.get("salario") or ""
+                    nivel = card.get("nivel") or ""
+                    descricao = f"{titulo} PJ | Empresa: {empresa} | Modelo: {card.get('tipo', 'Remoto')} | Nivel: {nivel} | Salario: {salario} | {resumo}"
+
                     vagas_coletadas.append(self.formatar_vaga(
-                        id_vaga=href if href.startswith("http") else f"https://www.vagaspj.com.br{href}",
-                        titulo=f"{titulo} (VagasPJ)",
+                        id_vaga=url,
+                        titulo=f"{titulo} (PJ)",
                         empresa=empresa,
                         localizacao="Remoto",
-                        descricao=texto_completo
+                        descricao=descricao
                     ))
-                except Exception as e:
+                except Exception:
                     continue
-                    
+
         except Exception as e:
-            logger.error(f"Erro ao acessar VagasPJ: {e}")
-            
+            logger.error("Erro ao buscar vagas na API VagasPJ: %s", e)
+
         return vagas_coletadas

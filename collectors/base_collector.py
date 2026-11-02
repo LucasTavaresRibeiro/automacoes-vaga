@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict
+from playwright.sync_api import sync_playwright
 
 class BaseCollector(ABC):
     """
@@ -13,9 +14,35 @@ class BaseCollector(ABC):
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
+        self.playwright = None
+        self.navegador = None
+        self.contexto = None
+        self.pagina = None
+
+    def iniciar_navegador(self, headless: bool = True):
+        """Inicializa o navegador Playwright em modo headless (compatível com Streamlit Cloud)."""
+        self.playwright = sync_playwright().start()
+        self.navegador = self.playwright.chromium.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
+        self.contexto = self.navegador.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent=self.headers["User-Agent"]
+        )
+        self.pagina = self.contexto.new_page()
+
+    def fechar_navegador(self):
+        """Encerra o navegador ao final de todas as coletas."""
+        if self.contexto:
+            self.contexto.close()
+        if self.navegador:
+            self.navegador.close()
+        if self.playwright:
+            self.playwright.stop()
 
     @abstractmethod
-    def buscar_vagas(self, termo_busca: str, localizacao: str) -> List[Dict]:
+    def buscar_vagas(self, termo_busca: str, localizacao: str = "") -> List[Dict]:
         """
         Método obrigatório.
         Deve buscar as vagas e retornar uma lista de dicionários contendo
@@ -36,5 +63,3 @@ class BaseCollector(ABC):
             "Descricao": descricao
             # Status, Score_IA e Data_Coleta são preenchidos automaticamente depois.
         }
-
-        
