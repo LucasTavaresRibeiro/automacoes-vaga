@@ -10,12 +10,11 @@ st.set_page_config(page_title="Job Hunter AI", layout="wide", page_icon="🎯")
 st.title("🤖 Job Hunter - Painel de Vagas")
 st.markdown("Bem-vindo ao seu curador automático de vagas PJ & Remotas.")
 
-# Instalação automática do Playwright no Streamlit Cloud
+# Instalação automática do Playwright sob demanda
 @st.cache_resource
-def install_playwright():
+def ensure_playwright():
     os.system("playwright install chromium")
-    
-install_playwright()
+    return True
 
 # Sidebar
 st.sidebar.header("Painel de Controle")
@@ -23,6 +22,8 @@ st.sidebar.header("Painel de Controle")
 if st.sidebar.button("🚀 Rodar Robô de Coleta", type="primary", use_container_width=True):
     with st.sidebar.status("Executando varredura completa...", expanded=True) as status_box:
         log_placeholder = st.empty()
+        log_placeholder.markdown("**Status:** Verificando navegador Playwright...")
+        ensure_playwright()
         def atualizar_progresso(msg: str):
             log_placeholder.markdown(f"**Status:** {msg}")
         resultado = orquestrar_sistema(callback_progresso=atualizar_progresso)

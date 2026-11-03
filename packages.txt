@@ -9,7 +9,6 @@ libxext6
 libxi6
 libxtst6
 libxrandr2
-libasound2
 libatk1.0-0
 libgtk-3-0
-libgbm-dev
+libgbm1
