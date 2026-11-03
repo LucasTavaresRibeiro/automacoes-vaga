@@ -51,22 +51,48 @@ class JobDatabase:
         titulo = vaga.get("Titulo", "").lower()
         descricao = vaga.get("Descricao", "").lower()
         
-        # 1. WHITELIST (Obrigatório ter pelo menos 1 termo de TI no título)
-        termos_ti = [
-            r"\banalista\b", r"\bsuporte\b", r"\bdesenvolvedor\b", 
-            r"\binfraestrutura\b", r"\brpa\b", r"\bhelpdesk\b", r"\bsistemas\b", r"\buipath\b", 
-            r"\blow-code\b", r"\bengenheiro\b", r"\bprogramador\b", r"\btech\b", r"\bti\b", 
-            r"\btecnologia\b", r"\bcloud\b", r"\bdevops\b", r"\bbackend\b", r"\bback-end\b", 
-            r"\bfrontend\b", r"\bfront-end\b", r"\bfullstack\b", r"\bfull-stack\b",
-            r"\bsustentação\b", r"\bsustentacao\b", r"\bpj\b"
+        # 1. WHITELIST ESTRITA DE CARGOS (Obrigatório ter pelo menos 1 termo específico da sua área no título)
+        # Importante: Não usamos mais r"\banalista\b" ou r"\bpj\b" isolados aqui, pois aprovavam "Analista de RH", "Vendedor PJ", etc.
+        termos_alvo = [
+            r"\bsustenta[çc][ãa]o\b",
+            r"\bsuporte\b",
+            r"\bhelp\s*desk\b",
+            r"\bservice\s*desk\b",
+            r"\binfraestrutura\b",
+            r"\brpa\b",
+            r"\buipath\b",
+            r"\blow[\s-]*code\b",
+            r"\bsistemas?\b",
+            r"\bti\b",
+            r"\bnoc\b",
+            r"\bcloud\b",
+            r"\bdevops\b",
+            r"\bsre\b",
+            r"\bredes\b",
+            r"\bautomac[aã]o\b",
+            r"\bautomaç[aã]o\b"
         ]
         
-        padrao_ti = re.compile('|'.join(termos_ti), re.IGNORECASE)
-        if not padrao_ti.search(titulo):
+        padrao_alvo = re.compile('|'.join(termos_alvo), re.IGNORECASE)
+        if not padrao_alvo.search(titulo):
+            return False
+
+        # 2. BLACKLIST DE TÍTULOS FORA DO ESCOPO (RH, Jurídico, Vendas, Financeiro, Python/Dados/Fullstack que você pediu para remover)
+        titulos_proibidos = [
+            r"\brh\b", r"recursos humanos", r"business partner", r"departamento pessoal",
+            r"jur[íi]dico", r"advogad[oa]", r"contratos", r"licitac[õo]es", r"licitaç[õo]es",
+            r"controladoria", r"cont[áa]bil", r"fiscal", r"tribut[áa]ri[oa]", r"finan[çc]as", r"financeir[oa]",
+            r"vendas", r"vendedor", r"comercial", r"compras", r"marketing", r"growth",
+            r"servi[çc]os compartilhados", r"processos administrativos", r"gerente de relacionamento",
+            r"assessor de neg[óo]cios", r"gerente industrial", r"auditoria",
+            r"\bdados\b", r"\bdata\b", r"\bpython\b", r"full\s*stack", r"fullstack",
+            r"front[\s-]*end", r"back[\s-]*end", r"\bjava\b", r"\breact\b", r"\bnode\b"
+        ]
+        padrao_titulo_proibido = re.compile('|'.join(titulos_proibidos), re.IGNORECASE)
+        if padrao_titulo_proibido.search(titulo):
             return False
             
-        # 2. BLACKLIST (Rejeição sumária)
-        # O \b garante que palavras curtas não batam no meio de outras palavras.
+        # 3. BLACKLIST GERAL (CLT puro, Presencial/Híbrido, Encerradas)
         has_clt = re.search(r'\bclt\b|\bc\.l\.t', descricao) or re.search(r'\bclt\b|\bc\.l\.t', titulo)
         
         # Permitir CLT apenas se for "CLT Cooperado", "PJ ou CLT", etc.
@@ -86,6 +112,26 @@ class JobDatabase:
                 return False
                 
         return True
+
+    def limpar_vagas_invalidas(self) -> int:
+        """
+        Revalida todas as vagas existentes no banco (exceto 'Candidatado') usando as regras atuais
+        de validar_vaga() e remove qualquer lixo que tenha entrado com filtros antigos.
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT ID_Vaga, Titulo, Descricao, Status FROM vagas WHERE Status != 'Candidatado'")
+            vagas = cursor.fetchall()
+            removidas = 0
+            for v in vagas:
+                if not self.validar_vaga({"Titulo": v["Titulo"], "Descricao": v["Descricao"]}):
+                    cursor.execute("DELETE FROM vagas WHERE ID_Vaga = ?", (v["ID_Vaga"],))
+                    removidas += 1
+            self.conn.commit()
+            return removidas
+        except Exception as e:
+            logger.error("Erro ao limpar vagas invalidas: %s", e)
+            return 0
 
     def vaga_existe(self, id_vaga: str) -> bool:
         """Verifica se o ID_Vaga já está no banco de dados."""

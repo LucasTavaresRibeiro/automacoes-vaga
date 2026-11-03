@@ -48,6 +48,7 @@ def load_data():
     try:
         db = JobDatabase()
         db.inicializar_banco()
+        db.limpar_vagas_invalidas()
         conn = sqlite3.connect("banco_vagas.db")
         df = pd.read_sql_query("SELECT Titulo, Empresa, ID_Vaga, Status, Data_Coleta, Descricao FROM vagas", conn)
         conn.close()

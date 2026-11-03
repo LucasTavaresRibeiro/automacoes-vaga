@@ -32,7 +32,10 @@ def orquestrar_sistema(callback_progresso: Optional[Callable[[str], None]] = Non
     db = JobDatabase()
     db.inicializar_banco()
     
-    # Audita vagas existentes para marcar as que já encerraram
+    # Limpa vagas antigas fora do filtro atual e audita encerradas
+    removidas = db.limpar_vagas_invalidas()
+    if removidas > 0:
+        reportar(f"🧹 {removidas} vaga(s) fora do escopo removida(s) do banco.")
     reportar("🔎 Auditando vagas existentes no banco para detectar vagas encerradas...")
     total_encerradas = db.auditar_vagas_encerradas()
     if total_encerradas > 0:

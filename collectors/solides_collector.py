@@ -16,8 +16,10 @@ class SolidesCollector:
 
     def iniciar_navegador(self):
         self.playwright = sync_playwright().start()
-        # Headless True para evitar dor de cabeça em background
-        self.navegador = self.playwright.chromium.launch(headless=True)
+        self.navegador = self.playwright.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
         self.contexto = self.navegador.new_context(
             viewport={'width': 1920, 'height': 1080},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -45,7 +47,7 @@ class SolidesCollector:
         
         termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "c.l.t."]
         
-        logger.info(f"🌍 Navegando no Sólides: {url_busca}")
+        logger.info("Navegando no Solides: %s", url_busca)
         try:
             self.pagina.goto(url_busca, timeout=30000)
             time.sleep(5)
@@ -91,18 +93,17 @@ class SolidesCollector:
                     titulo = linhas[0].title()
                     empresa = linhas[1].title() if len(linhas) > 1 else "Sólides"
                     
-                    # FILTRO DE SANIDADE: O título deve ter alguma relação com a nossa busca!
+                    # FILTRO DE SANIDADE: O título deve ter relação com nossa área (ignorando a palavra genérica "analista")
                     termo_busca_lower = termo_busca.lower()
-                    palavras_chave_busca = [p for p in termo_busca_lower.split() if len(p) > 2]
+                    palavras_chave_busca = [p for p in termo_busca_lower.split() if len(p) > 2 and p != "analista"]
                     titulo_lower = titulo.lower()
                     
                     tem_relacao = any(palavra in titulo_lower for palavra in palavras_chave_busca)
-                    # Adiciona garantia extra para termos de TI em geral caso a busca seja vaga
-                    termos_ti = ["analista", "suporte", "desenvolvedor", "python", "dados", "infraestrutura", "rpa", "helpdesk", "sistemas"]
+                    termos_ti = ["suporte", "sustentação", "sustentacao", "infraestrutura", "rpa", "helpdesk", "help desk", "service desk", "sistemas", "uipath", "low-code", "redes", "noc"]
                     tem_relacao_ti = any(t in titulo_lower for t in termos_ti)
                     
                     if not (tem_relacao or tem_relacao_ti):
-                        continue # Pula vagas bizarras tipo "Assistente de Sala"
+                        continue
                     
                     vagas_coletadas.append(self.formatar_vaga(
                         id_vaga=href if href.startswith("http") else f"https://vagas.solides.com.br{href}",
@@ -111,10 +112,10 @@ class SolidesCollector:
                         localizacao="Remoto",
                         descricao=texto_completo
                     ))
-                except Exception as e:
+                except Exception:
                     continue
                     
         except Exception as e:
-            logger.error(f"Erro ao raspar Sólides: {e}")
+            logger.error("Erro ao raspar Solides: %s", e)
             
         return vagas_coletadas
