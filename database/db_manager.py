@@ -146,12 +146,12 @@ class JobDatabase:
 
     def limpar_vagas_invalidas(self) -> int:
         """
-        Revalida todas as vagas existentes no banco (exceto 'Candidatado') usando as regras atuais
-        de validar_vaga() e remove qualquer lixo (CLT, Efetivo, EUA, Presencial, fora do escopo).
+        Revalida todas as vagas existentes no banco (preservando 'Candidatado' e 'Descartada')
+        usando as regras atuais de validar_vaga() e remove qualquer lixo.
         """
         try:
             cursor = self.conn.cursor()
-            cursor.execute("SELECT ID_Vaga, Titulo, Descricao, Localizacao, Status FROM vagas WHERE Status != 'Candidatado'")
+            cursor.execute("SELECT ID_Vaga, Titulo, Descricao, Localizacao, Status FROM vagas WHERE Status NOT IN ('Candidatado', 'Descartada')")
             vagas = cursor.fetchall()
             removidas = 0
             for v in vagas:
