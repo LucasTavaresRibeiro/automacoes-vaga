@@ -10,6 +10,7 @@ from collectors.solides_collector import SolidesCollector
 from collectors.programathor_collector import ProgramaThorCollector
 from collectors.vagascom_collector import VagasComCollector
 from collectors.vagaspj_collector import VagasPJCollector
+from collectors.infojobs_collector import InfoJobsCollector
 import notificacao_email
 
 load_dotenv()
@@ -47,6 +48,7 @@ def orquestrar_sistema(callback_progresso: Optional[Callable[[str], None]] = Non
     coletor_programathor = ProgramaThorCollector()
     coletor_vagascom = VagasComCollector()
     coletor_vagaspj = VagasPJCollector()
+    coletor_infojobs = InfoJobsCollector()
     
     # ==========================================
     # 2. FASE DE COLETA
@@ -131,7 +133,7 @@ def orquestrar_sistema(callback_progresso: Optional[Callable[[str], None]] = Non
         coletor_vagascom.fechar_navegador()
 
     # --- VAGASPJ ---
-    reportar("🌐 [5/6] Iniciando varredura no VagasPJ...")
+    reportar("🌐 [5/7] Iniciando varredura no VagasPJ...")
     try:
         coletor_vagaspj.iniciar_navegador(headless=True)
         for termo in termos_estrategicos:
@@ -146,8 +148,24 @@ def orquestrar_sistema(callback_progresso: Optional[Callable[[str], None]] = Non
     finally:
         coletor_vagaspj.fechar_navegador()
 
+    # --- INFOJOBS ---
+    reportar("🌐 [6/7] Iniciando varredura no InfoJobs...")
+    try:
+        coletor_infojobs.iniciar_navegador(headless=True)
+        for termo in termos_estrategicos:
+            reportar(f"▶️ InfoJobs: buscando '{termo}'...")
+            vagas_ij = coletor_infojobs.buscar_vagas(termo_busca=termo)
+            for vaga in vagas_ij:
+                if db.salvar_vaga(vaga):
+                    vagas_salvas_total += 1
+            time.sleep(1)
+    except Exception as e:
+        logger.error("Erro no InfoJobs: %s", e)
+    finally:
+        coletor_infojobs.fechar_navegador()
+
     # --- LINKEDIN ---
-    reportar("🌐 [6/6] Iniciando varredura no LinkedIn...")
+    reportar("🌐 [7/7] Iniciando varredura no LinkedIn...")
     try:
         coletor_linkedin.iniciar_navegador()
         try:

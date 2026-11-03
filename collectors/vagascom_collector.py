@@ -1,8 +1,8 @@
-import time
 import logging
 import re
+import requests
+from bs4 import BeautifulSoup
 from typing import List, Dict, Any
-from playwright.sync_api import sync_playwright
 from collectors.base_collector import BaseCollector
 
 logger = logging.getLogger(__name__)
@@ -12,24 +12,16 @@ class VagasComCollector(BaseCollector):
         super().__init__()
         self.url_base = "https://www.vagas.com.br/vagas-de-"
 
-    def formatar_vaga(self, id_vaga: str, titulo: str, empresa: str, localizacao: str, descricao: str) -> Dict[str, Any]:
-        return {
-            "ID_Vaga": id_vaga,
-            "Titulo": titulo,
-            "Empresa": empresa,
-            "Localizacao": localizacao,
-            "Descricao": descricao
-        }
+    def iniciar_navegador(self, headless: bool = True):
+        # Usa requests + BeautifulSoup (muito mais rápido e sem risco de Timeout de anúncios)
+        pass
 
-    def buscar_vagas(self, termo_busca: str) -> List[Dict[str, Any]]:
-        if not self.pagina:
-            logger.error("Navegador não iniciado no Vagas.com.br.")
-            return []
+    def fechar_navegador(self):
+        pass
 
+    def buscar_vagas(self, termo_busca: str, localizacao: str = "") -> List[Dict[str, Any]]:
         vagas_coletadas = []
-        # Prepara a URL (ex: "Suporte Técnico" -> "suporte-tecnico")
         termo_formatado = termo_busca.lower().replace(" ", "-")
-        # Trata acentuação básica se necessário, mas o Vagas aceita sem acento
         termo_formatado = re.sub(r'[áàâã]', 'a', termo_formatado)
         termo_formatado = re.sub(r'[éèê]', 'e', termo_formatado)
         termo_formatado = re.sub(r'[íì]', 'i', termo_formatado)
@@ -37,37 +29,33 @@ class VagasComCollector(BaseCollector):
         termo_formatado = re.sub(r'[úùû]', 'u', termo_formatado)
         termo_formatado = re.sub(r'[ç]', 'c', termo_formatado)
         
-        url_busca = f"{self.url_base}{termo_formatado}?"
-        logger.info(f"🌍 Navegando no Vagas.com.br: {url_busca}")
+        # m%5B%5D=100%25+Home+Office filtra vagas remotas no Vagas.com.br
+        url_busca = f"{self.url_base}{termo_formatado}?m%5B%5D=100%25+Home+Office"
+        logger.info("Consultando Vagas.com.br: %s", url_busca)
 
         try:
-            self.pagina.goto(url_busca, timeout=30000)
-            self.pagina.wait_for_timeout(3000)
+            resp = requests.get(url_busca, headers=self.headers, timeout=20)
+            if resp.status_code != 200:
+                return []
 
-            # O vagas.com.br usa listas com 'li' contendo as vagas
-            cartoes = self.pagina.locator("article, li").all()
-            
+            soup = BeautifulSoup(resp.text, "html.parser")
+            cartoes = soup.select("li.vaga")
+            if not cartoes:
+                cartoes = soup.find_all(["li", "article"])
+
             for cartao in cartoes:
                 try:
-                    # Encontra o link da vaga
-                    link_el = cartao.locator("a[href*='/vagas/']").first
-                    if not link_el.is_visible():
+                    link_el = cartao.select_one("a.link-detalhes-vaga, a[href*='/vagas/v']")
+                    if not link_el:
                         continue
-                        
-                    href = link_el.get_attribute("href")
+                    href = link_el.get("href", "")
                     if not href:
                         continue
-                        
-                    texto_completo = cartao.inner_text().strip()
-                    if not texto_completo:
-                        continue
-                        
-                    linhas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
-                    titulo = linhas[0].title() if linhas else "Vaga"
-                    
-                    # Heurística para pegar a empresa
-                    empresa_el = cartao.locator(".emprVaga, .empresa").first
-                    empresa = empresa_el.inner_text().strip() if empresa_el.is_visible() else "Empresa Confidencial"
+
+                    titulo = link_el.get_text(strip=True).title()
+                    empresa_el = cartao.select_one(".emprVaga, .empresa")
+                    empresa = empresa_el.get_text(strip=True) if empresa_el else "Vagas.com.br"
+                    texto_completo = cartao.get_text(" ", strip=True)
 
                     vagas_coletadas.append(self.formatar_vaga(
                         id_vaga=f"https://www.vagas.com.br{href}" if href.startswith("/") else href,
@@ -76,10 +64,10 @@ class VagasComCollector(BaseCollector):
                         localizacao="Remoto",
                         descricao=texto_completo
                     ))
-                except Exception as e:
+                except Exception:
                     continue
-                    
+
         except Exception as e:
-            logger.error(f"Erro ao acessar Vagas.com.br: {e}")
+            logger.error("Erro ao acessar Vagas.com.br: %s", e)
             
         return vagas_coletadas

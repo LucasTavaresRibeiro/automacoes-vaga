@@ -20,7 +20,7 @@ def ensure_playwright():
 st.sidebar.header("Painel de Controle")
 
 if st.sidebar.button("🚀 Rodar Robô de Coleta", type="primary", use_container_width=True):
-    with st.sidebar.status("Executando varredura completa...", expanded=True) as status_box:
+    with st.sidebar.status("Executando varredura completa (7 plataformas)...", expanded=True) as status_box:
         log_placeholder = st.empty()
         log_placeholder.markdown("**Status:** Verificando navegador Playwright...")
         ensure_playwright()
@@ -45,6 +45,24 @@ if st.sidebar.button("🔎 Verificar Vagas Encerradas", use_container_width=True
         )
     st.rerun()
 
+def identificar_portal(url: str) -> str:
+    u = str(url).lower()
+    if "gupy.io" in u:
+        return "Gupy"
+    if "vagaspj.com.br" in u or "adzuna.com.br" in u:
+        return "VagasPJ"
+    if "vagas.com.br" in u:
+        return "Vagas.com"
+    if "solides" in u:
+        return "Sólides"
+    if "infojobs.com.br" in u:
+        return "InfoJobs"
+    if "programathor.com.br" in u:
+        return "ProgramaThor"
+    if "linkedin.com" in u:
+        return "LinkedIn"
+    return "Outro"
+
 def load_data():
     try:
         db = JobDatabase()
@@ -53,6 +71,8 @@ def load_data():
         conn = sqlite3.connect("banco_vagas.db")
         df = pd.read_sql_query("SELECT Titulo, Empresa, ID_Vaga, Status, Data_Coleta, Descricao FROM vagas", conn)
         conn.close()
+        if not df.empty:
+            df["Portal"] = df["ID_Vaga"].apply(identificar_portal)
         return df
     except Exception as e:
         return pd.DataFrame()
@@ -72,7 +92,6 @@ df = load_data()
 if df.empty:
     st.warning("Nenhuma vaga encontrada ainda. Clique em **'🚀 Rodar Robô de Coleta'** na barra lateral!")
 else:
-    # Normaliza status antigos 'Coletada' para exibição consistente
     status_ativos = ["Coletada", "Aberta", "Analisada"]
     total_ativas = len(df[df["Status"].isin(status_ativos)])
     total_aplicadas = len(df[df["Status"] == "Candidatado"])
@@ -88,14 +107,17 @@ else:
     with tab1:
         st.subheader("Vagas Ativas para Avaliar")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             termo = st.text_input("Buscar vaga por título ou empresa")
         with col2:
+            portais_disp = sorted(df["Portal"].unique().tolist())
+            portais_sel = st.multiselect("Filtrar Portal", portais_disp, default=portais_disp)
+        with col3:
             opcoes_status = [s for s in df["Status"].unique() if s not in ["Candidatado", "Encerrada"]]
             status = st.multiselect("Filtrar Status", df["Status"].unique(), default=opcoes_status)
 
-        df_fila = df[df["Status"].isin(status)].copy()
+        df_fila = df[df["Status"].isin(status) & df["Portal"].isin(portais_sel)].copy()
         
         # Lógica de Ordenação: PJ no topo e mais recentes primeiro!
         is_pj = df_fila["Titulo"].str.contains(r'\bpj\b|pessoa jur[íi]dica', case=False, na=False) | df_fila["Descricao"].str.contains(r'\bpj\b|pessoa jur[íi]dica', case=False, na=False)
@@ -108,7 +130,7 @@ else:
         st.markdown("---")
         
         if not df_fila.empty:
-            df_view = df_fila[["Titulo", "Empresa", "Status", "ID_Vaga", "Data_Coleta"]].copy()
+            df_view = df_fila[["Titulo", "Empresa", "Portal", "Status", "ID_Vaga", "Data_Coleta"]].copy()
             df_view.insert(0, "Candidatou?", False)
             df_view.insert(1, "Encerrada?", False)
             
@@ -116,7 +138,7 @@ else:
                 df_view,
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Titulo", "Empresa", "Status", "ID_Vaga", "Data_Coleta"],
+                disabled=["Titulo", "Empresa", "Portal", "Status", "ID_Vaga", "Data_Coleta"],
                 column_config={
                     "Candidatou?": st.column_config.CheckboxColumn(
                         "✅ Candidatou?",
@@ -134,6 +156,7 @@ else:
                     ),
                     "Titulo": st.column_config.TextColumn("Vaga", width="large"),
                     "Empresa": st.column_config.TextColumn("Empresa", width="medium"),
+                    "Portal": st.column_config.TextColumn("Portal", width="small"),
                     "Status": st.column_config.TextColumn("Status", width="small"),
                     "Data_Coleta": st.column_config.DatetimeColumn("Coletada em", format="DD/MM/YYYY HH:mm")
                 }
@@ -161,7 +184,7 @@ else:
         df_aplicadas = df[df["Status"] == "Candidatado"].copy()
         
         if not df_aplicadas.empty:
-            df_view_app = df_aplicadas[["Titulo", "Empresa", "ID_Vaga", "Data_Coleta"]]
+            df_view_app = df_aplicadas[["Titulo", "Empresa", "Portal", "ID_Vaga", "Data_Coleta"]]
             st.dataframe(
                 df_view_app,
                 use_container_width=True,
@@ -181,7 +204,7 @@ else:
         df_enc = df[df["Status"] == "Encerrada"].copy()
         if not df_enc.empty:
             st.dataframe(
-                df_enc[["Titulo", "Empresa", "ID_Vaga", "Data_Coleta"]],
+                df_enc[["Titulo", "Empresa", "Portal", "ID_Vaga", "Data_Coleta"]],
                 use_container_width=True,
                 hide_index=True,
                 column_config={
