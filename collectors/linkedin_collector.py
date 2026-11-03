@@ -14,12 +14,15 @@ class LinkedInCollector:
         self.contexto = None
         self.pagina = None
 
-    def iniciar_navegador(self):
+    def iniciar_navegador(self, headless: bool = True):
         self.playwright = sync_playwright().start()
-        # Trocado para headless=True para rodar em background (mas pode ser bloqueado mais fácil pelo LinkedIn)
-        self.navegador = self.playwright.chromium.launch(headless=True)
+        self.navegador = self.playwright.chromium.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
         self.contexto = self.navegador.new_context(
             viewport={'width': 1920, 'height': 1080},
+            locale="pt-BR",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         self.pagina = self.contexto.new_page()
@@ -33,31 +36,21 @@ class LinkedInCollector:
         email = os.getenv("LINKEDIN_EMAIL")
         senha = os.getenv("LINKEDIN_SENHA")
         if not email or not senha:
-            logger.warning("⚠️ Credenciais LINKEDIN_EMAIL e LINKEDIN_SENHA não encontradas no .env. O robô tentará coletar em modo visitante (mais limitado).")
+            logger.info("Seguindo no LinkedIn em modo público/visitante (geoId Brasil).")
             return
         
-        logger.info("🔑 Realizando login no LinkedIn...")
+        logger.info("Realizando login no LinkedIn...")
         self.pagina.goto("https://www.linkedin.com/login")
         
         try:
-            # Tenta preencher no padrão /login
-            # Aumentado para 60 segundos para dar tempo de digitar a senha do Administrador no Windows (UAC)
-            self.pagina.wait_for_selector("#username", timeout=60000)
+            self.pagina.wait_for_selector("#username", timeout=15000)
             self.pagina.fill("#username", email)
             self.pagina.fill("#password", senha)
             self.pagina.click("button[type='submit']")
-            
-            # Aguarda o redirecionamento
             self.pagina.wait_for_load_state("networkidle")
-            time.sleep(5)
-            
-            if "checkpoint" in self.pagina.url or "challenge" in self.pagina.url:
-                logger.warning("🚨 O LinkedIn pediu verificação de segurança (Captcha/Código). Como a janela está aberta, resolva rapidamente!")
-                # Dá um tempo pro usuário resolver o captcha visualmente
-                time.sleep(30)
+            time.sleep(3)
         except Exception as e:
-            logger.error("Falha ao tentar logar no LinkedIn. O site pode ter bloqueado a requisição: %s", e)
-            raise Exception("Bloqueio no login do LinkedIn")
+            logger.warning("Login ignorado no LinkedIn, usando busca publica Brasil: %s", e)
 
     def formatar_vaga(self, id_vaga: str, titulo: str, empresa: str, localizacao: str, descricao: str) -> Dict[str, Any]:
         return {
@@ -70,59 +63,68 @@ class LinkedInCollector:
 
     def buscar_vagas(self, termo_busca: str) -> List[Dict[str, Any]]:
         vagas_coletadas = []
-        termo_url = quote(termo_busca)
+        # Adiciona PJ ao termo se não tiver, para focar em vagas PJ no Brasil
+        query = f"{termo_busca} PJ" if "pj" not in termo_busca.lower() else termo_busca
+        termo_url = quote(query)
         
-        # Filtros de busca: location=Brasil, f_WT=2 (Remoto), f_TPR=r2592000 (Últimos 30 dias)
-        url_busca = f"https://www.linkedin.com/jobs/search/?keywords={termo_url}&location=Brasil&f_WT=2&f_TPR=r2592000"
+        # geoId=106057199 = BRASIL (impede que IPs dos EUA no Streamlit Cloud puxem vagas dos EUA!)
+        # f_WT=2 = Remoto | f_TPR=r2592000 = Últimos 30 dias
+        url_busca = f"https://br.linkedin.com/jobs/search/?keywords={termo_url}&location=Brasil&geoId=106057199&f_WT=2&f_TPR=r2592000"
         
-        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "c.l.t."]
-        # LinkedIn geralmente ja filtra remoto, mas garantimos os termos de PJ
-        locais_desejados = ["pj", "pessoa jurídica", "pessoa juridica", "remoto", "home office", "noturno", "noturna", "madrugada"]
+        termos_proibidos = [
+            "afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", 
+            "presencial", "híbrido", "hibrido", "candidaturas encerradas", 
+            "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "efetivo",
+            "united states", "usa", "u.s."
+        ]
 
-        logger.info(f"🌍 Navegando no LinkedIn: {url_busca}")
-        self.pagina.goto(url_busca)
-        time.sleep(5)
+        logger.info("Navegando no LinkedIn Brasil: %s", url_busca)
+        self.pagina.goto(url_busca, wait_until="domcontentloaded", timeout=30000)
+        time.sleep(4)
         
-        # Scroll para carregar vagas (Lazy Loading do LinkedIn)
-        for _ in range(4):
-            self.pagina.mouse.wheel(0, 3000)
-            time.sleep(2)
+        for _ in range(3):
+            self.pagina.mouse.wheel(0, 2500)
+            time.sleep(1.5)
             
-        # O LinkedIn tem seletores diferentes dependendo se você está logado (.job-card-container) ou não (.base-card)
         cartoes = self.pagina.locator(".base-card, .job-card-container, .job-search-card").all()
         
         for cartao in cartoes:
             try:
                 texto_cartao = cartao.inner_text().lower()
                 
-                # Filtro Negativo
                 if any(termo in texto_cartao for termo in termos_proibidos):
                     continue
                     
-                # Extração
                 titulo_el = cartao.locator(".base-search-card__title, .job-card-list__title, .sr-only").first
                 empresa_el = cartao.locator(".base-search-card__subtitle, .job-card-container__company-name, .hidden-nested-link").first
+                local_el = cartao.locator(".job-search-card__location, .job-card-container__metadata-item").first
                 link_el = cartao.locator("a.base-card__full-link, a.job-card-list__title, a.job-card-container__link").first
                 
                 if titulo_el.count() == 0 or link_el.count() == 0:
                     continue
                     
                 titulo = titulo_el.inner_text().strip()
-                empresa = empresa_el.inner_text().strip() if empresa_el.count() > 0 else "Não identificada"
+                empresa = empresa_el.inner_text().strip() if empresa_el.count() > 0 else "LinkedIn"
+                local_txt = local_el.inner_text().strip() if local_el.count() > 0 else "Brasil (Remoto)"
                 link = link_el.get_attribute("href")
                 
+                # Garante que a localização é Brasil
+                local_lower = local_txt.lower()
+                if any(ext in local_lower for ext in ["united states", "usa", "canada", "europe", "uk", "india"]):
+                    continue
+                
                 if link:
-                    # Remove os rastreadores absurdos da URL do LinkedIn para ficar limpo no banco
                     link = link.split("?")[0]
                 else:
                     continue
 
+                descricao_completa = f"{titulo} PJ | Local: {local_txt} | Remoto | {texto_cartao}"
                 vaga_formatada = self.formatar_vaga(
                     id_vaga=link, titulo=titulo, empresa=empresa, 
-                    localizacao="Remoto", descricao=texto_cartao
+                    localizacao=f"Remoto ({local_txt})", descricao=descricao_completa
                 )
                 vagas_coletadas.append(vaga_formatada)
-            except Exception as e:
+            except Exception:
                 continue
                 
         return vagas_coletadas

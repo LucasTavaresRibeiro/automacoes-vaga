@@ -10,12 +10,10 @@ class ProgramaThorCollector:
     def __init__(self):
         self.url_base = "https://programathor.com.br/jobs"
 
-    def iniciar_navegador(self):
-        # Como usamos requests, não precisa iniciar Playwright aqui
+    def iniciar_navegador(self, headless: bool = True):
         pass
 
     def fechar_navegador(self):
-        # Como usamos requests, não precisa fechar
         pass
 
     def formatar_vaga(self, id_vaga: str, titulo: str, empresa: str, localizacao: str, descricao: str) -> Dict[str, Any]:
@@ -29,12 +27,11 @@ class ProgramaThorCollector:
 
     def buscar_vagas(self, termo_busca: str) -> List[Dict[str, Any]]:
         vagas_coletadas = []
-        termos_proibidos = ["clt", "c.l.t", "c.l.t.", "presencial", "híbrido", "hibrido"]
+        termos_proibidos = ["clt", "c.l.t", "c.l.t.", "efetivo", "presencial", "híbrido", "hibrido"]
         
-        # Paginação até 5 páginas ou até não ter mais vagas
-        for page in range(1, 6):
-            url_busca = f"{self.url_base}?page={page}&search={termo_busca}"
-            logger.info(f"🌍 Navegando no ProgramaThor (Página {page}): {url_busca}")
+        for page in range(1, 4):
+            url_busca = f"{self.url_base}?page={page}&search={termo_busca}&contract_type=PJ"
+            logger.info("Navegando no ProgramaThor (Pagina %d): %s", page, url_busca)
             
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -48,7 +45,7 @@ class ProgramaThorCollector:
                 vagas = soup.find_all('div', class_='cell-list')
                 
                 if not vagas:
-                    break # Fim das páginas
+                    break
                     
                 for vaga in vagas:
                     titulo_el = vaga.find('h3', class_='text-gray-dark')
@@ -61,14 +58,12 @@ class ProgramaThorCollector:
                         titulo = re.sub(r'(Remoto|Híbrido|Presencial)', '', titulo_original, flags=re.IGNORECASE).strip()
                         empresa = empresa_el.text.strip() if empresa_el else "Empresa não informada"
                         habilidades = [tag.text.strip() for tag in tags_els]
-                        descricao_completa = f"{titulo_original} | Skills: {', '.join(habilidades)}"
+                        descricao_completa = f"{titulo_original} | Remoto | Contrato: PJ | Skills: {', '.join(habilidades)}"
                         
-                        # Filtro Anti-CLT / Presencial
                         texto_analise = descricao_completa.lower()
                         if any(termo in texto_analise for termo in termos_proibidos):
                             continue
                             
-                        # Link completo
                         href = link_el['href']
                         link_completo = f"https://programathor.com.br{href}" if href.startswith('/') else href
                         
@@ -80,7 +75,7 @@ class ProgramaThorCollector:
                             descricao=descricao_completa
                         ))
             except Exception as e:
-                logger.error(f"Erro ao acessar ProgramaThor na página {page}: {e}")
+                logger.error("Erro ao acessar ProgramaThor na pagina %d: %s", page, e)
                 break
                 
         return vagas_coletadas

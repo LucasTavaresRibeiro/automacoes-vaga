@@ -14,8 +14,9 @@ class GupyCollector(BaseCollector):
         termo_url = termo_busca.replace(" ", "%20")
         url_busca = f"{self.url_base}{termo_url}"
         
-        locais_desejados = ["remoto", "remota", "home office", "home-office", "teletrabalho", "anywhere", "são paulo", "sao paulo", "- sp", "qualquer lugar", "pj", "pessoa jurídica", "pessoa juridica", "noturno", "noturna", "madrugada"]
-        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "c.l.t."]
+        locais_desejados = ["remoto", "remota", "home office", "home-office", "teletrabalho", "anywhere", "qualquer lugar"]
+        termos_pj = ["pj", "pessoa jurídica", "pessoa juridica", "cooperado", "cnpj"]
+        termos_proibidos = ["afirmativa", "exclusiva para pcd", "exclusivo pcd", "exclusiva pcd", "exclusiva", "exclusivo", "presencial", "híbrido", "hibrido", "candidaturas encerradas", "inscrições encerradas", "inscricoes encerradas", "clt", "c.l.t", "c.l.t.", "efetivo"]
 
         logger.info("Navegando direto para: %s", url_busca)
         self.pagina.goto(url_busca)
@@ -41,6 +42,7 @@ class GupyCollector(BaseCollector):
                     
                     if any(termo in texto_cartao for termo in termos_proibidos): continue
                     if not any(loc in texto_cartao for loc in locais_desejados): continue
+                    if not any(pj in texto_cartao for pj in termos_pj): continue
 
                     link = cartao.get_attribute('href')
                     if link and link.startswith('/'):

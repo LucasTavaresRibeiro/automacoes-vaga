@@ -29,7 +29,9 @@ class VagasComCollector(BaseCollector):
         termo_formatado = re.sub(r'[úùû]', 'u', termo_formatado)
         termo_formatado = re.sub(r'[ç]', 'c', termo_formatado)
         
-        url_busca = f"{self.url_base}{termo_formatado}"
+        # Filtra vagas 100% Home Office e com termo PJ
+        termo_pj = f"{termo_formatado}-pj" if "pj" not in termo_formatado else termo_formatado
+        url_busca = f"{self.url_base}{termo_pj}?m%5B%5D=100%25+Home+Office"
         logger.info("Consultando Vagas.com.br: %s", url_busca)
 
         try:

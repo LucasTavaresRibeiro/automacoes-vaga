@@ -36,10 +36,17 @@ class SolidesCollector(BaseCollector):
                     if item.get("isDisabled") or item.get("pcdOnly"):
                         continue
 
-                    # Verifica contrato (CLT vs PJ)
+                    # Verifica contrato (Exige PJ / Pessoa Jurídica / Cooperado e bloqueia CLT/Efetivo)
                     contratos = [c.get("name", "").lower() for c in (item.get("recruitmentContractType") or [])]
                     str_contratos = " ".join(contratos)
-                    if "clt" in str_contratos and "pj" not in str_contratos and "jurídica" not in str_contratos and "juridica" not in str_contratos and "cooperado" not in str_contratos:
+                    desc_html = (item.get("description") or "").lower()
+                    titulo_lower = (item.get("title") or "").lower()
+                    texto_analise = f"{titulo_lower} {str_contratos} {desc_html}"
+                    
+                    tem_pj = any(p in texto_analise for p in ["pj", "pessoa jurídica", "pessoa juridica", "cooperado", "cnpj", "prestador"])
+                    if not tem_pj:
+                        continue
+                    if ("clt" in str_contratos or "efetivo" in str_contratos) and "pj" not in str_contratos and "jurídica" not in str_contratos and "juridica" not in str_contratos and "cooperado" not in str_contratos:
                         continue
 
                     titulo = (item.get("title") or "").strip()

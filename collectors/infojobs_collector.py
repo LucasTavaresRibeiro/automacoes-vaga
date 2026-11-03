@@ -16,7 +16,8 @@ class InfoJobsCollector(BaseCollector):
             return []
 
         vagas_coletadas = []
-        url_busca = f"{self.url_base}{quote(termo_busca)}"
+        query = f"{termo_busca} PJ" if "pj" not in termo_busca.lower() else termo_busca
+        url_busca = f"{self.url_base}{quote(query)}"
         logger.info("Navegando no InfoJobs: %s", url_busca)
 
         try:

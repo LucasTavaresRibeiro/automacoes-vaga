@@ -17,7 +17,6 @@ class JobDatabase:
     def _conectar(self):
         try:
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            # Para retornar linhas como dicionários
             self.conn.row_factory = sqlite3.Row
             logger.info("✅ Conectado ao banco SQLite local com sucesso!")
         except Exception as e:
@@ -48,11 +47,13 @@ class JobDatabase:
             raise
 
     def validar_vaga(self, vaga: dict) -> bool:
-        titulo = vaga.get("Titulo", "").lower()
-        descricao = vaga.get("Descricao", "").lower()
+        titulo = (vaga.get("Titulo") or "").lower()
+        descricao = (vaga.get("Descricao") or "").lower()
+        localizacao = (vaga.get("Localizacao") or "").lower()
+        url = (vaga.get("ID_Vaga") or "").lower()
+        texto_total = f"{titulo} {descricao} {localizacao}"
         
-        # 1. WHITELIST ESTRITA DE CARGOS (Obrigatório ter pelo menos 1 termo específico da sua área no título)
-        # Importante: Não usamos mais r"\banalista\b" ou r"\bpj\b" isolados aqui, pois aprovavam "Analista de RH", "Vendedor PJ", etc.
+        # 1. WHITELIST ESTRITA DE CARGOS DE TI / SUSTENTAÇÃO / SUPORTE / RPA
         termos_alvo = [
             r"\bsustenta[çc][ãa]o\b",
             r"\bsuporte\b",
@@ -68,41 +69,70 @@ class JobDatabase:
             r"\bcloud\b",
             r"\bdevops\b",
             r"\bsre\b",
-            r"\bredes\b",
-            r"\bautomac[aã]o\b",
-            r"\bautomaç[aã]o\b"
+            r"\bredes\b"
         ]
         
         padrao_alvo = re.compile('|'.join(termos_alvo), re.IGNORECASE)
         if not padrao_alvo.search(titulo):
             return False
 
-        # 2. BLACKLIST DE TÍTULOS FORA DO ESCOPO (RH, Jurídico, Vendas, Financeiro, Python/Dados/Fullstack que você pediu para remover)
+        # 2. BLACKLIST DE TÍTULOS FORA DO ESCOPO (RH, Jurídico, Vendas, Financeiro, Saúde, Indústria, Python/Dados/Fullstack)
         titulos_proibidos = [
-            r"\brh\b", r"recursos humanos", r"business partner", r"departamento pessoal",
+            r"\brh\b", r"recursos humanos", r"business partner", r"departamento pessoal", r"folha de pagamento",
             r"jur[íi]dico", r"advogad[oa]", r"contratos", r"licitac[õo]es", r"licitaç[õo]es",
             r"controladoria", r"cont[áa]bil", r"fiscal", r"tribut[áa]ri[oa]", r"finan[çc]as", r"financeir[oa]",
             r"vendas", r"vendedor", r"comercial", r"compras", r"marketing", r"growth",
             r"servi[çc]os compartilhados", r"processos administrativos", r"gerente de relacionamento",
             r"assessor de neg[óo]cios", r"gerente industrial", r"auditoria",
-            r"\bdados\b", r"\bdata\b", r"\bpython\b", r"full\s*stack", r"fullstack",
+            r"suporte administrativo", r"mec[âa]nico", r"enfermagem", r"paciente", r"hospital",
+            r"telemetria", r"automac[aã]o de testes", r"automaç[aã]o de testes", r"qualidade de software",
+            r"\bdados\b", r"\bdata\b", r"analytics", r"\bpython\b", r"full\s*stack", r"fullstack",
             r"front[\s-]*end", r"back[\s-]*end", r"\bjava\b", r"\breact\b", r"\bnode\b"
         ]
         padrao_titulo_proibido = re.compile('|'.join(titulos_proibidos), re.IGNORECASE)
         if padrao_titulo_proibido.search(titulo):
             return False
-            
-        # 3. BLACKLIST GERAL (CLT puro, Presencial/Híbrido, Encerradas)
-        has_clt = re.search(r'\bclt\b|\bc\.l\.t', descricao) or re.search(r'\bclt\b|\bc\.l\.t', titulo)
-        
-        # Permitir CLT apenas se for "CLT Cooperado", "PJ ou CLT", etc.
-        has_pj = re.search(r'\bpj\b|pessoa jur[íi]dica|cooperado', descricao) or re.search(r'\bpj\b|pessoa jur[íi]dica|cooperado', titulo)
-        
-        if has_clt and not has_pj:
+
+        # 3. FILTRO DE NACIONALIDADE (APENAS BRASIL - BLOQUEIA EUA / EXTERIOR)
+        termos_exterior = [
+            r"\bunited states\b", r"\busa\b", r"\beua\b", r"\bu\.s\.\b", r"\bu\.s\.a\.\b",
+            r"\bnew york\b", r"\bcalifornia\b", r"\btexas\b", r"\bflorida\b", r"\bchicago\b",
+            r"\bcanada\b", r"\bunited kingdom\b", r"\beurope\b", r"\bindia\b", r"\bmexico\b",
+            r"\bargentina\b", r"\bcolombia\b", r"\bchile\b", r"\bportugal\b", r"\bspain\b"
+        ]
+        if re.search('|'.join(termos_exterior), texto_total, re.IGNORECASE):
+            return False
+
+        # 4. OBRIGATORIEDADE DE REMOTO / HOME OFFICE
+        sinais_remoto = [
+            r"\bremot[oa]\b", r"home\s*office", r"home-office", r"teletrabalho", r"trabalho\s*remoto"
+        ]
+        if not re.search('|'.join(sinais_remoto), texto_total, re.IGNORECASE):
+            return False
+
+        # 5. OBRIGATORIEDADE DE PJ / COOPERADO E BLOQUEIO DE CLT-EFETIVO
+        sinais_pj = [
+            r"\bpj\b", r"pessoa\s*jur[íi]dica", r"\bcnpj\b", r"\bcooperad[oa]\b", r"\bfreelancer\b"
+        ]
+        tem_pj = bool(re.search('|'.join(sinais_pj), texto_total, re.IGNORECASE)) or ("vagaspj.com.br" in url)
+
+        sinais_clt_efetivo = [
+            r"\bclt\b", r"\bc\.l\.t", r"\befetivo\b", r"carteira\s*assinada", r"regime\s*clt"
+        ]
+        tem_clt_efetivo = bool(re.search('|'.join(sinais_clt_efetivo), texto_total, re.IGNORECASE))
+
+        # Se menciona CLT/Efetivo e NÃO menciona PJ/Cooperado, bloqueia imediatamente
+        if tem_clt_efetivo and not tem_pj:
+            return False
+
+        # Conforme acordado: foco exclusivo em vagas PJ / Pessoa Jurídica / Cooperado
+        if not tem_pj:
             return False
             
+        # 6. BLACKLIST DE MODALIDADE PRESENCIAL/HÍBRIDA E VAGAS ENCERRADAS
         termos_encerrados_e_proibidos = [
             "presencial", "híbrido", "hibrido", "banco de talentos", "exclusivo pcd", 
+            "exclusiva para pcd", "extensiva para pessoas com deficiência",
             "encerrada", "encerrado", "candidaturas encerradas", "inscrições encerradas", 
             "inscricoes encerradas", "vaga pausada", "vaga congelada", "vaga cancelada",
             "processo seletivo encerrado", "não aceita mais candidaturas", "expirada", "expirado"
@@ -116,15 +146,20 @@ class JobDatabase:
     def limpar_vagas_invalidas(self) -> int:
         """
         Revalida todas as vagas existentes no banco (exceto 'Candidatado') usando as regras atuais
-        de validar_vaga() e remove qualquer lixo que tenha entrado com filtros antigos.
+        de validar_vaga() e remove qualquer lixo (CLT, Efetivo, EUA, Presencial, fora do escopo).
         """
         try:
             cursor = self.conn.cursor()
-            cursor.execute("SELECT ID_Vaga, Titulo, Descricao, Status FROM vagas WHERE Status != 'Candidatado'")
+            cursor.execute("SELECT ID_Vaga, Titulo, Descricao, Localizacao, Status FROM vagas WHERE Status != 'Candidatado'")
             vagas = cursor.fetchall()
             removidas = 0
             for v in vagas:
-                if not self.validar_vaga({"Titulo": v["Titulo"], "Descricao": v["Descricao"]}):
+                if not self.validar_vaga({
+                    "ID_Vaga": v["ID_Vaga"],
+                    "Titulo": v["Titulo"],
+                    "Descricao": v["Descricao"],
+                    "Localizacao": v["Localizacao"]
+                }):
                     cursor.execute("DELETE FROM vagas WHERE ID_Vaga = ?", (v["ID_Vaga"],))
                     removidas += 1
             self.conn.commit()
@@ -144,7 +179,7 @@ class JobDatabase:
             return False
 
     def salvar_vaga(self, dados_vaga: Dict[str, Any]) -> bool:
-        """Salva uma nova vaga no banco de dados se não for duplicada."""
+        """Salva uma nova vaga no banco de dados se não for duplicada e passar pelo validador estrito."""
         id_vaga = dados_vaga.get("ID_Vaga")
         
         if not id_vaga:
@@ -166,8 +201,8 @@ class JobDatabase:
                 dados_vaga.get("Localizacao", ""),
                 dados_vaga.get("Descricao", ""),
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                None, # Score_IA
-                None, # Analise_IA
+                None,
+                None,
                 "Aberta"
             ))
             self.conn.commit()
@@ -211,7 +246,6 @@ class JobDatabase:
                     
             return True, "Ativa"
         except Exception as e:
-            # Em caso de bloqueio de firewall/timeout, mantemos como ativa para não perder falsos-negativos
             return True, f"Indeterminado ({e})"
 
     def auditar_vagas_encerradas(self) -> int:
@@ -240,7 +274,6 @@ class JobDatabase:
             return 0
 
     def obter_vagas_sem_score(self) -> List[Dict[str, Any]]:
-        """Busca todas as vagas que ainda não passaram pelo crivo da IA."""
         try:
             cursor = self.conn.cursor()
             cursor.execute("SELECT * FROM vagas WHERE Score_IA IS NULL OR Score_IA = ''")
@@ -252,15 +285,12 @@ class JobDatabase:
                 vaga_dict['linha_planilha'] = vaga_dict['ID_Vaga']
                 vagas_pendentes.append(vaga_dict)
                 
-            logger.info("🔍 Encontradas %d vagas aguardando análise da IA.", len(vagas_pendentes))
             return vagas_pendentes
-            
         except Exception as e:
             logger.error("❌ Erro ao buscar vagas sem score: %s", e)
             return []
 
     def atualizar_score(self, id_vaga: str, score: int, justificativa: str) -> bool:
-        """Atualiza o Score e a Análise da vaga (usando o ID_Vaga)."""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
@@ -269,14 +299,12 @@ class JobDatabase:
                 WHERE ID_Vaga = ?
             ''', (score, justificativa, "Analisada", id_vaga))
             self.conn.commit()
-            logger.info("💾 Score %d salvo com sucesso para a vaga.", score)
             return True
         except Exception as e:
             logger.error("❌ Erro ao salvar o score para a vaga %s: %s", id_vaga, e)
             return False
 
     def obter_todas_vagas(self) -> List[Dict[str, Any]]:
-        """Usado pelo módulo de e-mail para buscar as vagas analisadas."""
         try:
             cursor = self.conn.cursor()
             cursor.execute("SELECT * FROM vagas")
