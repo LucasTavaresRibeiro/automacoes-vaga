@@ -29,8 +29,7 @@ class VagasComCollector(BaseCollector):
         termo_formatado = re.sub(r'[úùû]', 'u', termo_formatado)
         termo_formatado = re.sub(r'[ç]', 'c', termo_formatado)
         
-        # m%5B%5D=100%25+Home+Office filtra vagas remotas no Vagas.com.br
-        url_busca = f"{self.url_base}{termo_formatado}?m%5B%5D=100%25+Home+Office"
+        url_busca = f"{self.url_base}{termo_formatado}"
         logger.info("Consultando Vagas.com.br: %s", url_busca)
 
         try:
@@ -39,7 +38,7 @@ class VagasComCollector(BaseCollector):
                 return []
 
             soup = BeautifulSoup(resp.text, "html.parser")
-            cartoes = soup.select("li.vaga")
+            cartoes = soup.find_all("li", class_=re.compile(r"vaga"))
             if not cartoes:
                 cartoes = soup.find_all(["li", "article"])
 
@@ -52,7 +51,7 @@ class VagasComCollector(BaseCollector):
                     if not href:
                         continue
 
-                    titulo = link_el.get_text(strip=True).title()
+                    titulo = (link_el.get("title") or link_el.get_text(" ", strip=True)).strip().title()
                     empresa_el = cartao.select_one(".emprVaga, .empresa")
                     empresa = empresa_el.get_text(strip=True) if empresa_el else "Vagas.com.br"
                     texto_completo = cartao.get_text(" ", strip=True)
