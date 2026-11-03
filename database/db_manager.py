@@ -87,7 +87,8 @@ class JobDatabase:
             r"suporte administrativo", r"mec[âa]nico", r"enfermagem", r"paciente", r"hospital",
             r"telemetria", r"automac[aã]o de testes", r"automaç[aã]o de testes", r"qualidade de software",
             r"\bdados\b", r"\bdata\b", r"analytics", r"\bpython\b", r"full\s*stack", r"fullstack",
-            r"front[\s-]*end", r"back[\s-]*end", r"\bjava\b", r"\breact\b", r"\bnode\b"
+            r"front[\s-]*end", r"back[\s-]*end", r"\bjava\b", r"\breact\b", r"\bnode\b",
+            r"consultor\s*sap", r"\bsap\b"
         ]
         padrao_titulo_proibido = re.compile('|'.join(titulos_proibidos), re.IGNORECASE)
         if padrao_titulo_proibido.search(titulo):
