@@ -1,4 +1,6 @@
 import logging
+import re
+import time
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any
@@ -14,7 +16,6 @@ class LinkedInCollector:
         }
 
     def iniciar_navegador(self, headless: bool = True):
-        # Usa a API guest oficial do LinkedIn Brasil (muito mais rápida e sem bloqueio de login)
         pass
 
     def fechar_navegador(self):
@@ -34,7 +35,9 @@ class LinkedInCollector:
 
     def buscar_vagas(self, termo_busca: str) -> List[Dict[str, Any]]:
         vagas_coletadas = []
-        termo_url = quote(termo_busca)
+        # Força "Remoto" e "PJ" na query do LinkedIn
+        query = f'"{termo_busca}" Remoto PJ' if "pj" not in termo_busca.lower() else f'"{termo_busca}" Remoto'
+        termo_url = quote(query)
         
         # geoId=106057199 = BRASIL | f_WT=2 = Remoto | f_TPR=r2592000 = Últimos 30 dias
         url_busca = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={termo_url}&location=Brasil&geoId=106057199&f_WT=2&f_TPR=r2592000&start=0"
@@ -46,7 +49,7 @@ class LinkedInCollector:
             "united states", "usa", "u.s."
         ]
 
-        logger.info("Consultando LinkedIn Brasil (Remoto): %s", url_busca)
+        logger.info("Consultando LinkedIn Brasil (Remoto + PJ): %s", url_busca)
         try:
             resp = requests.get(url_busca, headers=self.headers, timeout=20)
             if resp.status_code != 200:
@@ -73,25 +76,44 @@ class LinkedInCollector:
                     if not link:
                         continue
 
-                    # Normaliza link para br.linkedin.com
                     link = link.replace("https://www.linkedin.com", "https://br.linkedin.com")
-
-                    texto_cartao = cartao.get_text(" ", strip=True).lower()
-                    if any(termo in texto_cartao for termo in termos_proibidos):
-                        continue
 
                     # Garante que a localização é no Brasil
                     local_lower = local_txt.lower()
                     if any(ext in local_lower for ext in ["united states", "usa", "canada", "europe", "uk", "india", "latin america"]):
                         continue
 
-                    descricao_completa = f"{titulo} | Empresa: {empresa} | Local: {local_txt} (Brasil) | Modalidade: Remoto (f_WT=2) | PJ / Cooperado | {texto_cartao}"
+                    texto_cartao = cartao.get_text(" ", strip=True).lower()
+                    if any(termo in texto_cartao for termo in termos_proibidos):
+                        continue
+
+                    # Busca a descrição REAL da vaga na API jobPosting/{job_id}
+                    # Sem injetar "Remoto" ou "PJ" falsamente! Só passa se a descrição real comprovar Remoto + PJ!
+                    match_id = re.search(r'-(\d+)$', link) or re.search(r'/view/(\d+)', link)
+                    texto_detalhe = ""
+                    if match_id:
+                        job_id = match_id.group(1)
+                        try:
+                            r_det = requests.get(
+                                f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}",
+                                headers=self.headers,
+                                timeout=10
+                            )
+                            if r_det.status_code == 200:
+                                s_det = BeautifulSoup(r_det.text, "html.parser")
+                                desc_box = s_det.select_one(".show-more-less-html__markup, .description__text")
+                                texto_detalhe = desc_box.get_text(" ", strip=True) if desc_box else s_det.get_text(" ", strip=True)
+                            time.sleep(0.4)
+                        except Exception:
+                            pass
+
+                    descricao_real = f"{titulo} | Empresa: {empresa} | Local: {local_txt} | {texto_detalhe}"
                     vagas_coletadas.append(self.formatar_vaga(
                         id_vaga=link,
                         titulo=titulo,
                         empresa=empresa,
-                        localizacao=f"Remoto - {local_txt}",
-                        descricao=descricao_completa
+                        localizacao=local_txt,
+                        descricao=descricao_real
                     ))
                 except Exception:
                     continue

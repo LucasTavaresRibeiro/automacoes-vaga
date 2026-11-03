@@ -72,7 +72,7 @@ class VagasPJCollector(BaseCollector):
             for card in cards:
                 try:
                     tipo = (card.get("tipo") or "").lower()
-                    if "presencial" in tipo or "hibrido" in tipo or "híbrido" in tipo:
+                    if "remoto" not in tipo:
                         continue
 
                     titulo = card.get("nome") or "Vaga PJ"
